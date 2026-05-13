@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: option-pricing-backend
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/option_pricing}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+server:
+  port: ${SERVER_PORT:8080}
+
+pricing:
+  defaults:
+    risk-free-rate: 0.05
+    monte-carlo-simulations: 10000
+    binomial-steps: 500
