@@ -23,8 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @TestPropertySource(properties = {
         "spring.datasource.url=jdbc:h2:mem:optionpricing;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
         "spring.datasource.driver-class-name=org.h2.Driver",
-        "spring.jpa.hibernate.ddl-auto=create-drop",
-        "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect"
+        "spring.jpa.hibernate.ddl-auto=create-drop"
 })
 class PricingControllerIntegrationTest {
     @Autowired
@@ -61,14 +60,35 @@ class PricingControllerIntegrationTest {
     }
 
     @Test
+    void versionedPriceEndpointRejectsInvalidTicker() throws Exception {
+        String expiry = LocalDate.now().plusDays(7).toString();
+
+        mockMvc.perform(post("/api/v1/price")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "ticker": "AAPL<script>",
+                                  "spotPrice": 226.5,
+                                  "strike": 207.5,
+                                  "expiry": "%s",
+                                  "optionType": "CALL",
+                                  "volatility": 0.2191,
+                                  "riskFreeRate": 0.05
+                                }
+                                """.formatted(expiry)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").exists());
+    }
+
+    @Test
     void historyEndpointReturnsLoggedRequests() throws Exception {
-        mockMvc.perform(get("/api/history"))
+        mockMvc.perform(get("/api/v1/history"))
                 .andExpect(status().isOk());
     }
 
     @Test
     void analyticsEndpointReturnsHistoricalRequestSummary() throws Exception {
-        mockMvc.perform(get("/api/history/analytics"))
+        mockMvc.perform(get("/api/v1/history/analytics"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalRequests").exists())
                 .andExpect(jsonPath("$.uniqueTickers").exists())

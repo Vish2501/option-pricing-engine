@@ -68,8 +68,10 @@ public class OptionPricingService {
         return new ComparisonResponse(market.ticker(), market.livePrice(), market.historicalVolatility(), call, put);
     }
 
-    public List<PricingRequestLog> history() {
-        return repository.findAll();
+    public List<PricingHistoryResponse> history() {
+        return repository.findTop50ByOrderByRequestedAtDesc().stream()
+                .map(this::toHistoryResponse)
+                .toList();
     }
 
     public PricingAnalyticsResponse analytics() {
@@ -135,6 +137,29 @@ public class OptionPricingService {
         log.setTheta(response.greeks().theta());
         log.setRho(response.greeks().rho());
         return log;
+    }
+
+    private PricingHistoryResponse toHistoryResponse(PricingRequestLog log) {
+        return new PricingHistoryResponse(
+                log.getId(),
+                log.getTicker(),
+                log.getSpotPrice(),
+                log.getStrike(),
+                log.getExpiry(),
+                log.getOptionType(),
+                log.getRiskFreeRate(),
+                log.getVolatility(),
+                log.getBlackScholesPrice(),
+                log.getMonteCarloPrice(),
+                log.getBinomialTreePrice(),
+                log.getImpliedVolatility(),
+                log.getDelta(),
+                log.getGamma(),
+                log.getVega(),
+                log.getTheta(),
+                log.getRho(),
+                log.getRequestedAt()
+        );
     }
 
     private double modelSpread(PricingRequestLog log) {

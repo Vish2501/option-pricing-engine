@@ -53,6 +53,9 @@ type HistoryRow = PricingResponse & {
   rho: number;
 };
 
+const API_BASE_URL = "/api/v1";
+const API_KEY = import.meta.env.VITE_API_KEY as string | undefined;
+
 const today = new Date();
 const defaultExpiry = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
   .toISOString()
@@ -67,7 +70,12 @@ function formatNumber(value: number | null | undefined, digits = 4) {
 }
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
+  const headers = new Headers(init?.headers);
+  if (API_KEY) {
+    headers.set("X-API-Key", API_KEY);
+  }
+
+  const response = await fetch(`${API_BASE_URL}${url}`, { ...init, headers });
   if (!response.ok) {
     const body = await response.json().catch(() => null);
     throw new Error(body?.message ?? `Request failed with ${response.status}`);
@@ -120,7 +128,7 @@ function App() {
         riskFreeRate: riskFreeRate ? Number(riskFreeRate) : null,
         marketPrice: marketPrice ? Number(marketPrice) : null
       };
-      const data = await requestJson<PricingResponse>("/api/price", {
+      const data = await requestJson<PricingResponse>("/price", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -138,7 +146,7 @@ function App() {
     setStockLoading(true);
     setError("");
     try {
-      const data = await requestJson<MarketData>(`/api/stock/${ticker}`);
+      const data = await requestJson<MarketData>(`/stock/${ticker}`);
       setMarketData(data);
       setSpotPrice(String(Number(data.livePrice.toFixed(4))));
       setVolatility(String(Number(data.historicalVolatility.toFixed(4))));
@@ -152,7 +160,7 @@ function App() {
   async function loadHistory() {
     setHistoryLoading(true);
     try {
-      const data = await requestJson<HistoryRow[]>("/api/history");
+      const data = await requestJson<HistoryRow[]>("/history");
       setHistory(data.slice().reverse().slice(0, 8));
     } catch {
       setHistory([]);

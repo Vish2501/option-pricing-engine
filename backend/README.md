@@ -9,6 +9,8 @@ Spring Boot API inspired by [saeedbidi/option_pricing](https://github.com/saeedb
 - Maven
 - Spring Web
 - Spring Data JPA
+- Spring Security
+- Springdoc OpenAPI
 - PostgreSQL
 - Apache Commons Math
 - H2 for integration tests
@@ -54,9 +56,12 @@ Override with:
 export DATABASE_URL=jdbc:postgresql://localhost:5432/option_pricing
 export DATABASE_USERNAME=postgres
 export DATABASE_PASSWORD=your_password
+export API_KEY=your-history-api-key
 ```
 
 The included Docker database uses `postgres` as the password.
+`API_KEY` is optional locally. When present, historical endpoints require either
+`X-API-Key: your-history-api-key` or `Authorization: Bearer your-history-api-key`.
 
 ## Run
 
@@ -68,7 +73,13 @@ The API runs at `http://localhost:8080`.
 
 ## API
 
-`POST /api/price`
+Swagger UI is available at:
+
+```text
+http://localhost:8080/swagger-ui.html
+```
+
+`POST /api/v1/price`
 
 ```json
 {
@@ -88,13 +99,24 @@ The API runs at `http://localhost:8080`.
 Other endpoints:
 
 ```text
-GET /api/stock/{ticker}
-GET /api/price/compare/{ticker}
-GET /api/history
-GET /api/history/analytics
+GET /api/v1/stock/{ticker}
+GET /api/v1/price/compare/{ticker}
+GET /api/v1/history
+GET /api/v1/history/analytics
 ```
 
-Every `/api/price` request is saved to the `pricing_requests` table.
+Every `/api/v1/price` request is saved to the `pricing_requests` table.
+The application also accepts the legacy `/api/...` routes for local backwards compatibility.
+
+## Production Profile
+
+Use the `prod` profile when deploying:
+
+```bash
+SPRING_PROFILES_ACTIVE=prod mvn spring-boot:run
+```
+
+The production profile validates the database schema instead of mutating it automatically.
 
 ## Finance Notes
 

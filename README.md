@@ -14,6 +14,9 @@ The backend is inspired by the Python/Streamlit project [saeedbidi/option_pricin
 - Yahoo Finance live price lookup
 - Historical volatility from recent daily close prices
 - PostgreSQL logging of pricing requests and model outputs
+- Versioned REST API with Swagger/OpenAPI documentation
+- Optional API-key protection for history and analytics endpoints
+- DTO validation, global error responses, and integration tests
 - React dashboard for pricing, Greeks, implied volatility, and history
 
 ## Project Structure
@@ -58,7 +61,11 @@ Or configure your local database:
 export DATABASE_URL=jdbc:postgresql://localhost:5432/option_pricing
 export DATABASE_USERNAME=postgres
 export DATABASE_PASSWORD=your_password
+export API_KEY=your-history-api-key
 ```
+
+`API_KEY` is optional for local demos. When set, `GET /api/v1/history` and
+`GET /api/v1/history/analytics` require `X-API-Key` or a bearer token.
 
 ## Run Frontend
 
@@ -75,16 +82,23 @@ http://localhost:5173
 ```
 
 The frontend proxies `/api` requests to `http://localhost:8080`.
+If the backend uses `API_KEY`, create `frontend/.env.local` with:
+
+```text
+VITE_API_KEY=your-history-api-key
+```
 
 ## API Endpoints
 
 ```text
-POST /api/price
-GET /api/stock/{ticker}
-GET /api/price/compare/{ticker}
-GET /api/history
-GET /api/history/analytics
+POST /api/v1/price
+GET /api/v1/stock/{ticker}
+GET /api/v1/price/compare/{ticker}
+GET /api/v1/history
+GET /api/v1/history/analytics
 ```
+
+Swagger UI is available at `http://localhost:8080/swagger-ui.html`.
 
 Example pricing request:
 
@@ -116,6 +130,17 @@ Frontend:
 cd frontend
 npm run build
 ```
+
+## Production Checklist
+
+- **Database:** PostgreSQL-backed request log with explicit columns and indexes on ticker and request time.
+- **REST API:** Versioned `/api/v1` endpoints, correct HTTP statuses, DTOs, validation, and Swagger docs.
+- **Design patterns:** Controller, service, repository, DTO, and pricing-strategy style services for each model.
+- **Error handling:** Central exception handler with structured JSON errors.
+- **Security:** No checked-in secrets; optional API-key protection for historical data endpoints.
+- **Testing:** Unit tests for pricing math and integration tests for API validation, persistence, and security behavior.
+- **Deployment:** Environment-variable configuration for Railway/Vercel-style deployments; frontend can pass `VITE_API_KEY`.
+- **Code quality:** Clean repo structure, focused README, and reproducible Maven/Vite build commands.
 
 ## Notes
 

@@ -11,7 +11,13 @@ import java.time.LocalDate;
 @Getter
 @Setter
 @Entity
-@Table(name = "pricing_requests")
+@Table(
+        name = "pricing_requests",
+        indexes = {
+                @Index(name = "idx_pricing_requests_ticker", columnList = "ticker"),
+                @Index(name = "idx_pricing_requests_requested_at", columnList = "requested_at")
+        }
+)
 public class PricingRequestLog {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -65,7 +71,7 @@ public class PricingRequestLog {
     @Column(nullable = false)
     private double rho;
 
-    @Column(nullable = false)
+    @Column(name = "requested_at", nullable = false)
     private Instant requestedAt;
 
     @PrePersist
