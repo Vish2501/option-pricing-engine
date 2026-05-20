@@ -53,7 +53,7 @@ type HistoryRow = PricingResponse & {
   rho: number;
 };
 
-const API_BASE_URL = "/api/v1";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api/v1";
 const API_KEY = import.meta.env.VITE_API_KEY as string | undefined;
 
 const today = new Date();

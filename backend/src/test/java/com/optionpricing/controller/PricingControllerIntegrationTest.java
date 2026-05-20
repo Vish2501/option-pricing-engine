@@ -94,4 +94,11 @@ class PricingControllerIntegrationTest {
                 .andExpect(jsonPath("$.uniqueTickers").exists())
                 .andExpect(jsonPath("$.averageModelSpread").exists());
     }
+
+    @Test
+    void healthEndpointIsAvailableForRenderChecks() throws Exception {
+        mockMvc.perform(get("/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
+    }
 }

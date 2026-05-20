@@ -14,6 +14,7 @@ The backend is inspired by the Python/Streamlit project [saeedbidi/option_pricin
 - Yahoo Finance live price lookup
 - Historical volatility from recent daily close prices
 - PostgreSQL logging of pricing requests and model outputs
+- Flyway database migration for deployable schema setup
 - Versioned REST API with Swagger/OpenAPI documentation
 - Optional API-key protection for history and analytics endpoints
 - DTO validation, global error responses, and integration tests
@@ -64,6 +65,15 @@ export DATABASE_PASSWORD=your_password
 export API_KEY=your-history-api-key
 ```
 
+Render-style variable names are supported too:
+
+```bash
+export SPRING_DATASOURCE_URL=jdbc:postgresql://host:5432/database
+export SPRING_DATASOURCE_USERNAME=database_user
+export SPRING_DATASOURCE_PASSWORD=database_password
+export CORS_ALLOWED_ORIGINS=https://your-vercel-app.vercel.app
+```
+
 `API_KEY` is optional for local demos. When set, `GET /api/v1/history` and
 `GET /api/v1/history/analytics` require `X-API-Key` or a bearer token.
 
@@ -85,6 +95,7 @@ The frontend proxies `/api` requests to `http://localhost:8080`.
 If the backend uses `API_KEY`, create `frontend/.env.local` with:
 
 ```text
+VITE_API_BASE_URL=https://option-pricing-api.onrender.com/api/v1
 VITE_API_KEY=your-history-api-key
 ```
 
@@ -99,6 +110,52 @@ GET /api/v1/history/analytics
 ```
 
 Swagger UI is available at `http://localhost:8080/swagger-ui.html`.
+Health checks are available at `http://localhost:8080/health`.
+
+## Render + Vercel Deployment
+
+Backend on Render:
+
+```text
+Name: option-pricing-api
+Language: Docker
+Root Directory: backend
+Dockerfile Path: Dockerfile
+Health Check Path: /health
+```
+
+Set these Render environment variables:
+
+```text
+SPRING_PROFILES_ACTIVE=prod
+SPRING_DATASOURCE_URL=jdbc:postgresql://<host>:5432/<database>
+SPRING_DATASOURCE_USERNAME=<user>
+SPRING_DATASOURCE_PASSWORD=<password>
+API_KEY=<long-random-key>
+CORS_ALLOWED_ORIGINS=https://<your-vercel-app>.vercel.app
+```
+
+Frontend on Vercel:
+
+```text
+Root Directory: frontend
+Build Command: npm run build
+Output Directory: dist
+```
+
+For local Docker smoke testing:
+
+```bash
+cd backend
+docker compose up --build
+```
+
+Set these Vercel environment variables:
+
+```text
+VITE_API_BASE_URL=https://<your-render-service>.onrender.com/api/v1
+VITE_API_KEY=<same API_KEY if you want history visible in the UI>
+```
 
 Example pricing request:
 
@@ -139,7 +196,7 @@ npm run build
 - **Error handling:** Central exception handler with structured JSON errors.
 - **Security:** No checked-in secrets; optional API-key protection for historical data endpoints.
 - **Testing:** Unit tests for pricing math and integration tests for API validation, persistence, and security behavior.
-- **Deployment:** Environment-variable configuration for Railway/Vercel-style deployments; frontend can pass `VITE_API_KEY`.
+- **Deployment:** Environment-variable configuration for Render/Vercel deployments; Flyway prepares fresh Postgres databases.
 - **Code quality:** Clean repo structure, focused README, and reproducible Maven/Vite build commands.
 
 ## Notes

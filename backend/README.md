@@ -12,6 +12,7 @@ Spring Boot API inspired by [saeedbidi/option_pricing](https://github.com/saeedb
 - Spring Security
 - Springdoc OpenAPI
 - PostgreSQL
+- Flyway migrations
 - Apache Commons Math
 - H2 for integration tests
 
@@ -39,7 +40,7 @@ CREATE DATABASE option_pricing;
 Or start one with Docker:
 
 ```bash
-docker compose up -d
+docker compose up postgres -d
 ```
 
 The app defaults to:
@@ -57,6 +58,15 @@ export DATABASE_URL=jdbc:postgresql://localhost:5432/option_pricing
 export DATABASE_USERNAME=postgres
 export DATABASE_PASSWORD=your_password
 export API_KEY=your-history-api-key
+```
+
+Render-style variables are also supported:
+
+```bash
+export SPRING_DATASOURCE_URL=jdbc:postgresql://host:5432/database
+export SPRING_DATASOURCE_USERNAME=database_user
+export SPRING_DATASOURCE_PASSWORD=database_password
+export CORS_ALLOWED_ORIGINS=https://your-vercel-app.vercel.app
 ```
 
 The included Docker database uses `postgres` as the password.
@@ -77,6 +87,12 @@ Swagger UI is available at:
 
 ```text
 http://localhost:8080/swagger-ui.html
+```
+
+Health checks are available at:
+
+```text
+http://localhost:8080/health
 ```
 
 `POST /api/v1/price`
@@ -117,6 +133,42 @@ SPRING_PROFILES_ACTIVE=prod mvn spring-boot:run
 ```
 
 The production profile validates the database schema instead of mutating it automatically.
+
+## Docker
+
+Build and run the backend plus local Postgres:
+
+```bash
+docker compose up --build
+```
+
+The API will be available at:
+
+```text
+http://localhost:8080
+```
+
+## Render Deployment
+
+Use these settings for a Docker Web Service:
+
+```text
+Name: option-pricing-api
+Root Directory: backend
+Dockerfile Path: Dockerfile
+Health Check Path: /health
+```
+
+Required environment variables:
+
+```text
+SPRING_PROFILES_ACTIVE=prod
+SPRING_DATASOURCE_URL=jdbc:postgresql://<host>:5432/<database>
+SPRING_DATASOURCE_USERNAME=<user>
+SPRING_DATASOURCE_PASSWORD=<password>
+API_KEY=<long-random-key>
+CORS_ALLOWED_ORIGINS=https://<your-vercel-app>.vercel.app
+```
 
 ## Finance Notes
 
