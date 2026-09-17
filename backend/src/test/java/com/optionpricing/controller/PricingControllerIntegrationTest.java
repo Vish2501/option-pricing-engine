@@ -36,7 +36,7 @@ class PricingControllerIntegrationTest {
     void priceEndpointReturnsAllModelsGreeksAndImpliedVolatility() throws Exception {
         String expiry = LocalDate.now().plusDays(7).toString();
 
-        mockMvc.perform(post("/api/price")
+        mockMvc.perform(post("/api/v1/price")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {

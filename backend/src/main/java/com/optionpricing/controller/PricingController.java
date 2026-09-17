@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping({"/api/v1", "/api"})
+@RequestMapping("/api/v1")
 @Tag(name = "Option Pricing", description = "Pricing, market-data, history, and analytics endpoints.")
 public class PricingController {
     private final OptionPricingService service;
