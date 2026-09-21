@@ -8,6 +8,9 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:${DATABASE_USERNAME:postgres}}
     password: ${SPRING_DATASOURCE_PASSWORD:${DATABASE_PASSWORD:}}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      data-source-properties:
+        prepareThreshold: 0
   jpa:
     open-in-view: false
     hibernate:
