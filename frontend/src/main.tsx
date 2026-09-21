@@ -161,7 +161,7 @@ function App() {
     setHistoryLoading(true);
     try {
       const data = await requestJson<HistoryRow[]>("/history");
-      setHistory(data.slice().reverse().slice(0, 8));
+      setHistory(data.slice(0, 8));
     } catch {
       setHistory([]);
     } finally {
