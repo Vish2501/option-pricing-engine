@@ -15,8 +15,8 @@ public class MonteCarloService {
         this.defaultSimulations = defaultSimulations;
     }
 
-    public double price(OptionType type, double spot, double strike, double timeYears, double rate, double volatility) {
-        return price(type, spot, strike, timeYears, rate, volatility, defaultSimulations, DEFAULT_SEED);
+    public double price(OptionType type, double spot, double strike, double timeYears, double rate, double dividendYield, double volatility) {
+        return price(type, spot, strike, timeYears, rate, dividendYield, volatility, defaultSimulations, DEFAULT_SEED);
     }
 
     public double price(
@@ -25,6 +25,7 @@ public class MonteCarloService {
             double strike,
             double timeYears,
             double rate,
+            double dividendYield,
             double volatility,
             int simulations,
             long seed
@@ -34,7 +35,7 @@ public class MonteCarloService {
         }
 
         Random random = new Random(seed);
-        double drift = (rate - 0.5 * volatility * volatility) * timeYears;
+        double drift = (rate - dividendYield - 0.5 * volatility * volatility) * timeYears;
         double diffusion = volatility * Math.sqrt(timeYears);
         double sum = 0.0;
 

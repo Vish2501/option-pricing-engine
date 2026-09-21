@@ -12,8 +12,8 @@ class MonteCarloServiceTest {
 
     @Test
     void resultIsCloseToBlackScholesButNotIdentical() {
-        double expected = blackScholes.callPrice(100, 100, 1, 0.05, 0.2);
-        double actual = monteCarlo.price(OptionType.CALL, 100, 100, 1, 0.05, 0.2);
+        double expected = blackScholes.callPrice(100, 100, 1, 0.05, 0.0, 0.2);
+        double actual = monteCarlo.price(OptionType.CALL, 100, 100, 1, 0.05, 0.0, 0.2);
 
         assertThat(actual).isCloseTo(expected, offset(0.5));
         assertThat(actual).isNotEqualTo(expected);

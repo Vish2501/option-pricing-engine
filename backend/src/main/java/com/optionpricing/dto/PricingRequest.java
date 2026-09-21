@@ -18,6 +18,7 @@ public record PricingRequest(
         @NotNull OptionType optionType,
         @DecimalMin(value = "0.0", inclusive = false) Double volatility,
         Double riskFreeRate,
-        @DecimalMin(value = "0.0", inclusive = false) Double marketPrice
+        @DecimalMin(value = "0.0", inclusive = false) Double marketPrice,
+        Double dividendYield
 ) {
 }

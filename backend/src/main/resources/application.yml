@@ -39,6 +39,7 @@ security:
 pricing:
   defaults:
     risk-free-rate: 0.05
+    dividend-yield: 0.0
     monte-carlo-simulations: 10000
     binomial-steps: 500
 

@@ -14,24 +14,24 @@ public class ImpliedVolatilityService {
         this.blackScholesService = blackScholesService;
     }
 
-    public double impliedVolatility(OptionType type, double marketPrice, double spot, double strike, double timeYears, double rate) {
-        double volatility = newtonRaphson(type, marketPrice, spot, strike, timeYears, rate);
+    public double impliedVolatility(OptionType type, double marketPrice, double spot, double strike, double timeYears, double rate, double dividendYield) {
+        double volatility = newtonRaphson(type, marketPrice, spot, strike, timeYears, rate, dividendYield);
         if (Double.isFinite(volatility) && volatility > 0) {
             return volatility;
         }
-        return bisection(type, marketPrice, spot, strike, timeYears, rate);
+        return bisection(type, marketPrice, spot, strike, timeYears, rate, dividendYield);
     }
 
-    private double newtonRaphson(OptionType type, double marketPrice, double spot, double strike, double timeYears, double rate) {
+    private double newtonRaphson(OptionType type, double marketPrice, double spot, double strike, double timeYears, double rate, double dividendYield) {
         double volatility = 0.2;
         for (int i = 0; i < MAX_ITERATIONS; i++) {
-            double price = blackScholesService.price(type, spot, strike, timeYears, rate, volatility);
+            double price = blackScholesService.price(type, spot, strike, timeYears, rate, dividendYield, volatility);
             double diff = price - marketPrice;
             if (Math.abs(diff) < TOLERANCE) {
                 return volatility;
             }
 
-            double annualVega = blackScholesService.vega(spot, strike, timeYears, rate, volatility);
+            double annualVega = blackScholesService.vega(spot, strike, timeYears, rate, dividendYield, volatility);
             if (Math.abs(annualVega) < 1e-8) {
                 return Double.NaN;
             }
@@ -44,12 +44,12 @@ public class ImpliedVolatilityService {
         return Double.NaN;
     }
 
-    private double bisection(OptionType type, double marketPrice, double spot, double strike, double timeYears, double rate) {
+    private double bisection(OptionType type, double marketPrice, double spot, double strike, double timeYears, double rate, double dividendYield) {
         double low = 1e-6;
         double high = 5.0;
         for (int i = 0; i < MAX_ITERATIONS; i++) {
             double mid = (low + high) / 2.0;
-            double price = blackScholesService.price(type, spot, strike, timeYears, rate, mid);
+            double price = blackScholesService.price(type, spot, strike, timeYears, rate, dividendYield, mid);
             if (Math.abs(price - marketPrice) < TOLERANCE) {
                 return mid;
             }

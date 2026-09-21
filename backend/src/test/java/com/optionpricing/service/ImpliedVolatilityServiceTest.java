@@ -13,7 +13,7 @@ class ImpliedVolatilityServiceTest {
     @Test
     void backSolvesPythonProjectSampleImpliedVolatility() {
         double impliedVolatility = service.impliedVolatility(
-                OptionType.CALL, 22.25, 226.5, 207.5, 7.0 / 365.0, 0.05);
+                OptionType.CALL, 22.25, 226.5, 207.5, 7.0 / 365.0, 0.05, 0.0);
 
         assertThat(impliedVolatility).isCloseTo(0.8216, offset(0.01));
     }

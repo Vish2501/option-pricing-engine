@@ -12,11 +12,11 @@ public class BinomialTreeService {
         this.defaultSteps = defaultSteps;
     }
 
-    public double price(OptionType type, double spot, double strike, double timeYears, double rate, double volatility) {
-        return price(type, spot, strike, timeYears, rate, volatility, defaultSteps);
+    public double price(OptionType type, double spot, double strike, double timeYears, double rate, double dividendYield, double volatility) {
+        return price(type, spot, strike, timeYears, rate, dividendYield, volatility, defaultSteps);
     }
 
-    public double price(OptionType type, double spot, double strike, double timeYears, double rate, double volatility, int steps) {
+    public double price(OptionType type, double spot, double strike, double timeYears, double rate, double dividendYield, double volatility, int steps) {
         if (steps <= 0) {
             throw new IllegalArgumentException("Binomial steps must be positive.");
         }
@@ -24,7 +24,7 @@ public class BinomialTreeService {
         double dt = timeYears / steps;
         double up = Math.exp(volatility * Math.sqrt(dt));
         double down = 1.0 / up;
-        double probability = (Math.exp(rate * dt) - down) / (up - down);
+        double probability = (Math.exp((rate - dividendYield) * dt) - down) / (up - down);
         double discount = Math.exp(-rate * dt);
 
         if (probability < 0 || probability > 1) {

@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 @Service
 public class OptionPricingService {
     private final double defaultRiskFreeRate;
+    private final double defaultDividendYield;
     private final BlackScholesService blackScholesService;
     private final MonteCarloService monteCarloService;
     private final BinomialTreeService binomialTreeService;
@@ -25,6 +26,7 @@ public class OptionPricingService {
 
     public OptionPricingService(
             @Value("${pricing.defaults.risk-free-rate:0.05}") double defaultRiskFreeRate,
+            @Value("${pricing.defaults.dividend-yield:0.0}") double defaultDividendYield,
             BlackScholesService blackScholesService,
             MonteCarloService monteCarloService,
             BinomialTreeService binomialTreeService,
@@ -33,6 +35,7 @@ public class OptionPricingService {
             PricingRequestLogRepository repository
     ) {
         this.defaultRiskFreeRate = defaultRiskFreeRate;
+        this.defaultDividendYield = defaultDividendYield;
         this.blackScholesService = blackScholesService;
         this.monteCarloService = monteCarloService;
         this.binomialTreeService = binomialTreeService;
@@ -57,12 +60,12 @@ public class OptionPricingService {
 
         PricingResponse call = calculate(new PricingRequest(
                 market.ticker(), market.livePrice(), market.livePrice(), expiry, OptionType.CALL,
-                market.historicalVolatility(), defaultRiskFreeRate, null
+                market.historicalVolatility(), defaultRiskFreeRate, null, null
         ), false);
 
         PricingResponse put = calculate(new PricingRequest(
                 market.ticker(), market.livePrice(), market.livePrice(), expiry, OptionType.PUT,
-                market.historicalVolatility(), defaultRiskFreeRate, null
+                market.historicalVolatility(), defaultRiskFreeRate, null, null
         ), false);
 
         return new ComparisonResponse(market.ticker(), market.livePrice(), market.historicalVolatility(), call, put);
@@ -104,14 +107,16 @@ public class OptionPricingService {
         double spot = request.spotPrice() != null ? request.spotPrice() : market.livePrice();
         double volatility = request.volatility() != null ? request.volatility() : market.historicalVolatility();
         double rate = request.riskFreeRate() != null ? request.riskFreeRate() : defaultRiskFreeRate;
+        double dividendYield = request.dividendYield() != null ? request.dividendYield() : defaultDividendYield;
         double timeYears = ChronoUnit.DAYS.between(LocalDate.now(), request.expiry()) / 365.0;
 
-        double blackScholes = blackScholesService.price(request.optionType(), spot, request.strike(), timeYears, rate, volatility);
-        double monteCarlo = monteCarloService.price(request.optionType(), spot, request.strike(), timeYears, rate, volatility);
-        double binomial = binomialTreeService.price(request.optionType(), spot, request.strike(), timeYears, rate, volatility);
-        GreeksResponse greeks = blackScholesService.greeks(request.optionType(), spot, request.strike(), timeYears, rate, volatility);
+        PricingResult blackScholesResult = blackScholesService.priceWithGreeks(request.optionType(), spot, request.strike(), timeYears, rate, dividendYield, volatility);
+        double blackScholes = blackScholesResult.price();
+        double monteCarlo = monteCarloService.price(request.optionType(), spot, request.strike(), timeYears, rate, dividendYield, volatility);
+        double binomial = binomialTreeService.price(request.optionType(), spot, request.strike(), timeYears, rate, dividendYield, volatility);
+        GreeksResponse greeks = blackScholesResult.greeks();
         Double impliedVolatility = request.marketPrice() == null ? null : impliedVolatilityService.impliedVolatility(
-                request.optionType(), request.marketPrice(), spot, request.strike(), timeYears, rate);
+                request.optionType(), request.marketPrice(), spot, request.strike(), timeYears, rate, dividendYield);
 
         return new PricingResponse(
                 ticker, spot, request.strike(), request.expiry(), timeYears, request.optionType(), rate, volatility,
