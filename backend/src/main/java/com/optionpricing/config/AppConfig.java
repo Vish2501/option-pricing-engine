@@ -18,7 +18,12 @@ public class AppConfig {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(3));
         requestFactory.setReadTimeout(Duration.ofSeconds(5));
-        return builder.requestFactory(requestFactory).build();
+        return builder
+                .requestFactory(requestFactory)
+                // Yahoo Finance's chart API returns 429 for Java's default User-Agent
+                // (and for having no User-Agent at all) - a browser-like one is required.
+                .defaultHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                .build();
     }
 
     @Bean
