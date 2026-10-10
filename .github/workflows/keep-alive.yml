@@ -1,0 +1,32 @@
+name: Keep free-tier services awake
+
+# Render's free tier sleeps a service after 15 minutes without traffic.
+# Pinging every 10 minutes during UK working hours keeps the demos responsive
+# while staying inside Render's free monthly instance hours.
+on:
+  schedule:
+    # Cron is in UTC: 07:00-18:50 UTC, Monday to Friday
+    # (08:00-19:50 during British Summer Time).
+    - cron: "*/10 7-18 * * 1-5"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        url:
+          - https://option-pricing-api.onrender.com/health
+          - https://calitrack-api.onrender.com/swagger-ui/index.html
+    steps:
+      - name: Ping ${{ matrix.url }}
+        # Long timeout and retries so a cold start counts as a wake-up, not a failure.
+        run: |
+          curl --fail --silent --show-error --output /dev/null \
+            --max-time 180 --retry 3 --retry-delay 20 --retry-all-errors \
+            --write-out "%{http_code} in %{time_total}s\n" \
+            "${{ matrix.url }}"
