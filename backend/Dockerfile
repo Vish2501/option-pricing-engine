@@ -17,4 +17,6 @@ COPY --from=build /app/target/option-pricing-backend-0.0.1-SNAPSHOT.jar app.jar
 USER spring:spring
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+# Sized for a 512 MB container: cap the heap at half of it and use the lightest collector,
+# leaving the rest for class metadata, compiled code and thread stacks.
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=50", "-XX:+UseSerialGC", "-Xss512k", "-jar", "/app/app.jar"]
