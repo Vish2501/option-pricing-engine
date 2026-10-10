@@ -65,7 +65,6 @@ type Analytics = {
 };
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api/v1";
-const API_KEY = import.meta.env.VITE_API_KEY as string | undefined;
 
 const WAKE_NOTICE_DELAY_MS = 4000;
 const MAX_TICKER_BARS = 8;
@@ -84,14 +83,9 @@ function formatNumber(value: number | null | undefined, digits = 4) {
 }
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const headers = new Headers(init?.headers);
-  if (API_KEY) {
-    headers.set("X-API-Key", API_KEY);
-  }
-
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${url}`, { ...init, headers });
+    response = await fetch(`${API_BASE_URL}${url}`, init);
   } catch {
     throw new Error("The server is still waking up. Please try again in a minute.");
   }

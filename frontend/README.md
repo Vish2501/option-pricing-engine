@@ -28,14 +28,16 @@ http://localhost:5173
 
 The app calls the versioned backend API at `/api/v1`. Vite proxies `/api` to `http://localhost:8080`.
 
-If the backend has `API_KEY` configured, add:
+To point the app at a deployed backend instead, add:
 
 ```text
 VITE_API_BASE_URL=https://option-pricing-api.onrender.com/api/v1
-VITE_API_KEY=your-history-api-key
 ```
 
 to `frontend/.env.local`.
+
+The app sends no API key. Anything bundled into a browser app is readable by every visitor,
+so the backend protects itself with rate limiting instead.
 
 ## Vercel Deployment
 
@@ -51,5 +53,4 @@ Set:
 
 ```text
 VITE_API_BASE_URL=https://<your-render-service>.onrender.com/api/v1
-VITE_API_KEY=<same API_KEY if you want history visible in the UI>
 ```

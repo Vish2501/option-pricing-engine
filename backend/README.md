@@ -57,7 +57,6 @@ Override with:
 export DATABASE_URL=jdbc:postgresql://localhost:5432/option_pricing
 export DATABASE_USERNAME=postgres
 export DATABASE_PASSWORD=your_password
-export API_KEY=your-history-api-key
 ```
 
 Render-style variables are also supported:
@@ -70,8 +69,25 @@ export CORS_ALLOWED_ORIGINS=https://your-vercel-app.vercel.app
 ```
 
 The included Docker database uses `postgres` as the password.
-`API_KEY` is optional locally. When present, historical endpoints require either
-`X-API-Key: your-history-api-key` or `Authorization: Bearer your-history-api-key`.
+## Access and rate limiting
+
+The API is public and has no logins. It is protected by per-IP rate limiting, configured
+under `rate-limit` in `application.yml`:
+
+| Limit | Default |
+|---|---|
+| Any `/api` request, per client | 60 per minute |
+| `POST /api/v1/price`, per client | 10 per minute |
+| `POST /api/v1/price`, all clients combined | 300 per hour |
+
+Over the limit, the API returns `429` with a `Retry-After` header. Counters are held in
+memory, which suits a single instance. Clients are identified by `X-Forwarded-For`, which a
+caller can forge; the combined hourly cap is the backstop for that.
+
+`API_KEY` should stay unset for the public demo. If you set it, `GET /api/v1/history` and
+`GET /api/v1/history/analytics` require `X-API-Key` or a bearer token. That only suits
+server-to-server callers: the React app does not send a key, because anything shipped to a
+browser is public.
 
 ## Run
 
@@ -166,7 +182,6 @@ SPRING_PROFILES_ACTIVE=prod
 SPRING_DATASOURCE_URL=jdbc:postgresql://<host>:5432/<database>
 SPRING_DATASOURCE_USERNAME=<user>
 SPRING_DATASOURCE_PASSWORD=<password>
-API_KEY=<long-random-key>
 CORS_ALLOWED_ORIGINS=https://<your-vercel-app>.vercel.app
 ```
 
