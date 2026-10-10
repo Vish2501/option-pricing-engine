@@ -6,7 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
+import com.optionpricing.service.MarketDataUnavailableException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
@@ -21,5 +21,10 @@ public class GlobalExceptionHandler {
                 .map(error -> error.getField() + " " + error.getDefaultMessage())
                 .orElse("Invalid request.");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiErrorResponse.of(message));
+    }
+
+    @ExceptionHandler(MarketDataUnavailableException.class)
+    ResponseEntity<ApiErrorResponse> marketDataUnavailable(MarketDataUnavailableException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ApiErrorResponse.of(ex.getMessage()));
     }
 }

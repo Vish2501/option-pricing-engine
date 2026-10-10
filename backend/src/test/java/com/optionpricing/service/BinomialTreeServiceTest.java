@@ -25,4 +25,17 @@ class BinomialTreeServiceTest {
 
         assertThat(actual).isCloseTo(expected, offset(0.02));
     }
+    @Test
+    void europeanCallWithDividendYieldConvergesToBlackScholes(){
+        double spot = 100;
+        double strike = 90;
+        double timeYears = 1;
+        double rate = 0.05;
+        double dividendYield = 0.03;
+        double volatility = 0.2;
+
+        double expected = blackScholes.callPrice(100,90,1,0.05,0.03,0.2);
+        double actual = binomialTree.price(OptionType.CALL, spot, strike, timeYears, rate, dividendYield, volatility, 1000);
+        assertThat(actual).isCloseTo(expected, offset(0.02));
+    }
 }

@@ -1,6 +1,7 @@
 package com.optionpricing.controller;
 
 import com.optionpricing.service.MarketDataService;
+import com.optionpricing.service.MarketDataUnavailableException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -11,7 +12,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
-
+import static org.mockito.Mockito.when;
 import static org.hamcrest.Matchers.closeTo;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -81,6 +82,25 @@ class PricingControllerIntegrationTest {
     }
 
     @Test
+    void priceEndpointRejectsMissingStrikeWithValidationMessage() throws Exception {
+        String expiry = LocalDate.now().plusDays(7).toString();
+
+        mockMvc.perform(post("/api/v1/price")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "ticker": "AAPL",
+                                  "spotPrice": 226.5,
+                                  "expiry": "%s",
+                                  "optionType": "CALL",
+                                  "volatility": 0.2191
+                                }
+                                """.formatted(expiry)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("strike must not be null"));
+    }
+
+    @Test
     void historyEndpointReturnsLoggedRequests() throws Exception {
         mockMvc.perform(get("/api/v1/history"))
                 .andExpect(status().isOk());
@@ -100,5 +120,15 @@ class PricingControllerIntegrationTest {
         mockMvc.perform(get("/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"));
+    }
+
+    @Test
+    void stockEndpointReturnsBadGatewayWhenMarketDataIsUnavailable() throws Exception {
+        when(marketDataService.getMarketData("AAPL"))
+                .thenThrow(new MarketDataUnavailableException("Yahoo Finance unavailable", null));
+
+        mockMvc.perform(get("/api/v1/stock/AAPL"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.message").value("Yahoo Finance unavailable"));
     }
 }

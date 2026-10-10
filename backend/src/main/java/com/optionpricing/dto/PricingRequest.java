@@ -13,7 +13,7 @@ import java.time.LocalDate;
 public record PricingRequest(
         @NotBlank @Size(max = 12) @Pattern(regexp = "^[A-Za-z0-9.\\-]+$", message = "must be a valid market ticker") String ticker,
         @DecimalMin(value = "0.0", inclusive = false) Double spotPrice,
-        @DecimalMin(value = "0.0", inclusive = false) double strike,
+        @NotNull @DecimalMin(value = "0.0", inclusive = false) Double strike,
         @NotNull @Future LocalDate expiry,
         @NotNull OptionType optionType,
         @DecimalMin(value = "0.0", inclusive = false) Double volatility,

@@ -3,6 +3,7 @@ package com.optionpricing.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.optionpricing.dto.MarketDataResponse;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
@@ -48,8 +49,11 @@ public class MarketDataService {
                 throw new IllegalArgumentException("Invalid ticker or no Yahoo Finance data available: " + ticker);
             }
             return result;
+        } catch (HttpClientErrorException.NotFound ex) {
+            // Yahoo answers 404 for symbols it does not know - that is the caller's mistake, not an outage.
+            throw new IllegalArgumentException("Invalid ticker or no Yahoo Finance data available: " + ticker, ex);
         } catch (RestClientException ex) {
-            throw new IllegalArgumentException("Unable to fetch Yahoo Finance data for ticker " + ticker, ex);
+            throw new MarketDataUnavailableException("Unable to fetch Yahoo Finance data for ticker " + ticker, ex);
         }
     }
 
