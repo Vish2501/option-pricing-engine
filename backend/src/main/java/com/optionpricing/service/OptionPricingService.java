@@ -3,6 +3,7 @@ package com.optionpricing.service;
 import com.optionpricing.dto.*;
 import com.optionpricing.entity.PricingRequestLog;
 import com.optionpricing.model.ExerciseStyle;
+import com.optionpricing.model.OptionInputs;
 import com.optionpricing.model.OptionType;
 import com.optionpricing.model.TickerSymbol;
 import com.optionpricing.repository.PricingRequestLogRepository;
@@ -138,16 +139,18 @@ public class OptionPricingService {
         double dividendYield = request.dividendYield() != null ? request.dividendYield() : defaultDividendYield;
         double timeYears = ChronoUnit.DAYS.between(LocalDate.now(), request.expiry()) / 365.0;
 
-        PricingResult blackScholesResult = blackScholesService.priceWithGreeks(request.optionType(), spot, request.strike(), timeYears, rate, dividendYield, volatility);
+        OptionInputs inputs = new OptionInputs(spot, request.strike(), timeYears, rate, dividendYield, volatility);
+
+        PricingResult blackScholesResult = blackScholesService.priceWithGreeks(request.optionType(), inputs);
         double blackScholes = blackScholesResult.price();
-        MonteCarloResult monteCarlo = monteCarloService.simulate(request.optionType(), spot, request.strike(), timeYears, rate, dividendYield, volatility);
-        double binomial = binomialTreeService.price(request.optionType(), spot, request.strike(), timeYears, rate, dividendYield, volatility);
-        double americanBinomial = binomialTreeService.price(request.optionType(), ExerciseStyle.AMERICAN, spot, request.strike(), timeYears, rate, dividendYield, volatility);
+        MonteCarloResult monteCarlo = monteCarloService.simulate(request.optionType(), inputs);
+        double binomial = binomialTreeService.price(request.optionType(), inputs);
+        double americanBinomial = binomialTreeService.price(request.optionType(), ExerciseStyle.AMERICAN, inputs);
         GreeksResponse greeks = blackScholesResult.greeks();
         Double impliedVolatility = null;
         if (request.marketPrice() != null) {
             OptionalDouble solved = impliedVolatilityService.impliedVolatility(
-                    request.optionType(), request.marketPrice(), spot, request.strike(), timeYears, rate, dividendYield);
+                    request.optionType(), request.marketPrice(), inputs);
             impliedVolatility = solved.isPresent() ? solved.getAsDouble() : null;
         }
 

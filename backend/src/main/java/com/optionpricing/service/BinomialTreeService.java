@@ -1,6 +1,7 @@
 package com.optionpricing.service;
 
 import com.optionpricing.model.ExerciseStyle;
+import com.optionpricing.model.OptionInputs;
 import com.optionpricing.model.OptionType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -13,28 +14,28 @@ public class BinomialTreeService {
         this.defaultSteps = defaultSteps;
     }
 
-    public double price(OptionType type, double spot, double strike, double timeYears, double rate, double dividendYield, double volatility) {
-        return price(type, ExerciseStyle.EUROPEAN, spot, strike, timeYears, rate, dividendYield, volatility, defaultSteps);
+    public double price(OptionType type, OptionInputs inputs) {
+        return price(type, ExerciseStyle.EUROPEAN, inputs, defaultSteps);
     }
 
-    public double price(OptionType type, double spot, double strike, double timeYears, double rate, double dividendYield, double volatility, int steps) {
-        return price(type, ExerciseStyle.EUROPEAN, spot, strike, timeYears, rate, dividendYield, volatility, steps);
+    public double price(OptionType type, OptionInputs inputs, int steps) {
+        return price(type, ExerciseStyle.EUROPEAN, inputs, steps);
     }
 
-    public double price(OptionType type, ExerciseStyle style, double spot, double strike, double timeYears, double rate, double dividendYield, double volatility) {
-        return price(type, style, spot, strike, timeYears, rate, dividendYield, volatility, defaultSteps);
+    public double price(OptionType type, ExerciseStyle style, OptionInputs inputs) {
+        return price(type, style, inputs, defaultSteps);
     }
 
-    public double price(OptionType type, ExerciseStyle style, double spot, double strike, double timeYears, double rate, double dividendYield, double volatility, int steps) {
+    public double price(OptionType type, ExerciseStyle style, OptionInputs inputs, int steps) {
         if (steps <= 0) {
             throw new IllegalArgumentException("Binomial steps must be positive.");
         }
 
-        double dt = timeYears / steps;
-        double up = Math.exp(volatility * Math.sqrt(dt));
+        double dt = inputs.timeYears() / steps;
+        double up = Math.exp(inputs.volatility() * Math.sqrt(dt));
         double down = 1.0 / up;
-        double probability = (Math.exp((rate - dividendYield) * dt) - down) / (up - down);
-        double discount = Math.exp(-rate * dt);
+        double probability = (Math.exp((inputs.rate() - inputs.dividendYield()) * dt) - down) / (up - down);
+        double discount = Math.exp(-inputs.rate() * dt);
 
         if (probability < 0 || probability > 1) {
             throw new IllegalArgumentException("Invalid risk-neutral probability for supplied inputs.");
@@ -42,8 +43,8 @@ public class BinomialTreeService {
 
         double[] values = new double[steps + 1];
         for (int i = 0; i <= steps; i++) {
-            double terminalSpot = spot * Math.pow(up, steps - i) * Math.pow(down, i);
-            values[i] = payoff(type, terminalSpot, strike);
+            double terminalSpot = inputs.spot() * Math.pow(up, steps - i) * Math.pow(down, i);
+            values[i] = payoff(type, terminalSpot, inputs.strike());
         }
 
         for (int step = steps - 1; step >= 0; step--) {
@@ -51,8 +52,8 @@ public class BinomialTreeService {
                 values[i] = discount * (probability * values[i] + (1.0 - probability) * values[i + 1]);
                 if (style == ExerciseStyle.AMERICAN) {
                     // The holder exercises now whenever that is worth more than continuing to hold.
-                    double nodeSpot = spot * Math.pow(up, step - i) * Math.pow(down, i);
-                    values[i] = Math.max(values[i], payoff(type, nodeSpot, strike));
+                    double nodeSpot = inputs.spot() * Math.pow(up, step - i) * Math.pow(down, i);
+                    values[i] = Math.max(values[i], payoff(type, nodeSpot, inputs.strike()));
                 }
             }
         }
