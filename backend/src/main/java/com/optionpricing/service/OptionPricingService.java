@@ -4,14 +4,15 @@ import com.optionpricing.dto.*;
 import com.optionpricing.entity.PricingRequestLog;
 import com.optionpricing.model.OptionType;
 import com.optionpricing.repository.PricingRequestLogRepository;
+import com.optionpricing.repository.PricingRequestLogRepository.AnalyticsSummary;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 public class OptionPricingService {
@@ -78,18 +79,19 @@ public class OptionPricingService {
     }
 
     public PricingAnalyticsResponse analytics() {
-        List<PricingRequestLog> logs = repository.findAll();
-        Map<String, Long> requestsByTicker = logs.stream()
-                .collect(Collectors.groupingBy(PricingRequestLog::getTicker, Collectors.counting()));
+        AnalyticsSummary summary = repository.summarize();
+        // LinkedHashMap keeps the query's busiest-ticker-first order in the JSON response.
+        Map<String, Long> requestsByTicker = new LinkedHashMap<>();
+        repository.countRequestsByTicker().forEach(row -> requestsByTicker.put(row.getTicker(), row.getRequests()));
 
         return new PricingAnalyticsResponse(
-                logs.size(),
-                requestsByTicker.size(),
+                summary.getTotalRequests(),
+                summary.getUniqueTickers(),
                 requestsByTicker,
-                average(logs.stream().mapToDouble(PricingRequestLog::getBlackScholesPrice).toArray()),
-                average(logs.stream().mapToDouble(PricingRequestLog::getMonteCarloPrice).toArray()),
-                average(logs.stream().mapToDouble(PricingRequestLog::getBinomialTreePrice).toArray()),
-                average(logs.stream().mapToDouble(this::modelSpread).toArray())
+                orZero(summary.getAverageBlackScholesPrice()),
+                orZero(summary.getAverageMonteCarloPrice()),
+                orZero(summary.getAverageBinomialTreePrice()),
+                orZero(summary.getAverageModelSpread())
         );
     }
 
@@ -167,20 +169,7 @@ public class OptionPricingService {
         );
     }
 
-    private double modelSpread(PricingRequestLog log) {
-        double highest = Math.max(log.getBlackScholesPrice(), Math.max(log.getMonteCarloPrice(), log.getBinomialTreePrice()));
-        double lowest = Math.min(log.getBlackScholesPrice(), Math.min(log.getMonteCarloPrice(), log.getBinomialTreePrice()));
-        return highest - lowest;
-    }
-
-    private double average(double[] values) {
-        if (values.length == 0) {
-            return 0.0;
-        }
-        double sum = 0.0;
-        for (double value : values) {
-            sum += value;
-        }
-        return sum / values.length;
+    private double orZero(Double value) {
+        return value == null ? 0.0 : value;
     }
 }

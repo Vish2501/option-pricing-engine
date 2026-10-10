@@ -1,5 +1,8 @@
 package com.optionpricing.controller;
 
+import com.optionpricing.entity.PricingRequestLog;
+import com.optionpricing.model.OptionType;
+import com.optionpricing.repository.PricingRequestLogRepository;
 import com.optionpricing.service.MarketDataService;
 import com.optionpricing.service.MarketDataUnavailableException;
 import org.junit.jupiter.api.Test;
@@ -32,6 +35,9 @@ class PricingControllerIntegrationTest {
 
     @MockBean
     private MarketDataService marketDataService;
+
+    @Autowired
+    private PricingRequestLogRepository repository;
 
     @Test
     void priceEndpointReturnsAllModelsGreeksAndImpliedVolatility() throws Exception {
@@ -107,12 +113,49 @@ class PricingControllerIntegrationTest {
     }
 
     @Test
-    void analyticsEndpointReturnsHistoricalRequestSummary() throws Exception {
+    void analyticsEndpointReturnsZeroesWhenNothingHasBeenPriced() throws Exception {
+        repository.deleteAll();
+
         mockMvc.perform(get("/api/v1/history/analytics"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalRequests").exists())
-                .andExpect(jsonPath("$.uniqueTickers").exists())
-                .andExpect(jsonPath("$.averageModelSpread").exists());
+                .andExpect(jsonPath("$.totalRequests").value(0))
+                .andExpect(jsonPath("$.uniqueTickers").value(0))
+                .andExpect(jsonPath("$.averageModelSpread").value(0.0));
+    }
+
+    @Test
+    void analyticsEndpointAggregatesLoggedRequests() throws Exception {
+        repository.deleteAll();
+        repository.save(log("AAPL", 10.0, 10.4, 10.1));
+        repository.save(log("AAPL", 20.0, 19.0, 20.5));
+        repository.save(log("MSFT", 30.0, 30.0, 30.2));
+
+        mockMvc.perform(get("/api/v1/history/analytics"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalRequests").value(3))
+                .andExpect(jsonPath("$.uniqueTickers").value(2))
+                .andExpect(jsonPath("$.requestsByTicker.AAPL").value(2))
+                .andExpect(jsonPath("$.requestsByTicker.MSFT").value(1))
+                .andExpect(jsonPath("$.averageBlackScholesPrice").value(closeTo(20.0, 1e-9)))
+                .andExpect(jsonPath("$.averageMonteCarloPrice").value(closeTo(19.8, 1e-9)))
+                .andExpect(jsonPath("$.averageBinomialTreePrice").value(closeTo(20.2667, 1e-4)))
+                // Spreads are 0.4, 1.5 and 0.2.
+                .andExpect(jsonPath("$.averageModelSpread").value(closeTo(0.7, 1e-9)));
+    }
+
+    private PricingRequestLog log(String ticker, double blackScholes, double monteCarlo, double binomial) {
+        PricingRequestLog log = new PricingRequestLog();
+        log.setTicker(ticker);
+        log.setSpotPrice(100);
+        log.setStrike(100);
+        log.setExpiry(LocalDate.now().plusDays(30));
+        log.setOptionType(OptionType.CALL);
+        log.setRiskFreeRate(0.05);
+        log.setVolatility(0.2);
+        log.setBlackScholesPrice(blackScholes);
+        log.setMonteCarloPrice(monteCarlo);
+        log.setBinomialTreePrice(binomial);
+        return log;
     }
 
     @Test
