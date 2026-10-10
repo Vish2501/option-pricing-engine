@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Activity,
@@ -54,6 +54,12 @@ type HistoryRow = PricingResponse & {
   rho: number;
 };
 
+type TickerSuggestion = {
+  symbol: string;
+  name: string;
+  exchange: string;
+};
+
 type Analytics = {
   totalRequests: number;
   uniqueTickers: number;
@@ -68,6 +74,7 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?
 
 const WAKE_NOTICE_DELAY_MS = 4000;
 const MAX_TICKER_BARS = 8;
+const SEARCH_DEBOUNCE_MS = 300;
 
 const today = new Date();
 const defaultExpiry = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
@@ -109,6 +116,9 @@ function App() {
   const [marketData, setMarketData] = useState<MarketData | null>(null);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [suggestions, setSuggestions] = useState<TickerSuggestion[]>([]);
+  // The symbol last chosen from the suggestions, so choosing one does not trigger another search.
+  const chosenTicker = useRef(ticker);
   const [loading, setLoading] = useState(false);
   const [stockLoading, setStockLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -134,6 +144,37 @@ function App() {
   useEffect(() => {
     void loadHistory();
   }, []);
+
+  // Search by company name or symbol as the user types, after a short pause.
+  useEffect(() => {
+    const query = ticker.trim();
+    if (query.length < 2 || query === chosenTicker.current) {
+      setSuggestions([]);
+      return;
+    }
+
+    let stale = false;
+    const timer = window.setTimeout(async () => {
+      try {
+        const results = await requestJson<TickerSuggestion[]>(`/tickers/search?q=${encodeURIComponent(query)}`);
+        if (!stale) setSuggestions(results);
+      } catch {
+        if (!stale) setSuggestions([]);
+      }
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      stale = true;
+      window.clearTimeout(timer);
+    };
+  }, [ticker]);
+
+  function chooseSuggestion(suggestion: TickerSuggestion) {
+    chosenTicker.current = suggestion.symbol;
+    setTicker(suggestion.symbol);
+    setSuggestions([]);
+    void lookupStock(suggestion.symbol);
+  }
 
   // The API runs on free hosting that sleeps when idle, so a slow request usually
   // means a cold start - tell the user instead of leaving them with a spinner.
@@ -176,11 +217,11 @@ function App() {
     }
   }
 
-  async function lookupStock() {
+  async function lookupStock(symbol = ticker) {
     setStockLoading(true);
     setError("");
     try {
-      const data = await withWakeNotice(requestJson<MarketData>(`/stock/${ticker}`));
+      const data = await withWakeNotice(requestJson<MarketData>(`/stock/${encodeURIComponent(symbol.trim())}`));
       setMarketData(data);
       setSpotPrice(String(Number(data.livePrice.toFixed(4))));
       setVolatility(String(Number(data.historicalVolatility.toFixed(4))));
@@ -236,14 +277,41 @@ function App() {
           </div>
 
           <div className="field-grid">
-            <label>
+            <label className="ticker-field">
               <span>Ticker</span>
               <div className="inline-input">
-                <input value={ticker} onChange={(event) => setTicker(event.target.value.toUpperCase())} />
-                <button type="button" className="icon-button" onClick={lookupStock} title="Fetch market data">
+                <input
+                  value={ticker}
+                  placeholder="Symbol or company"
+                  autoComplete="off"
+                  onChange={(event) => setTicker(event.target.value.toUpperCase())}
+                  onKeyDown={(event) => event.key === "Escape" && setSuggestions([])}
+                  onBlur={() => setSuggestions([])}
+                />
+                <button type="button" className="icon-button" onClick={() => lookupStock()} title="Fetch market data">
                   {stockLoading ? <Loader2 className="spin" size={17} /> : <Search size={17} />}
                 </button>
               </div>
+              {suggestions.length > 0 && (
+                <ul className="suggestions" role="listbox">
+                  {suggestions.map((suggestion) => (
+                    <li
+                      key={suggestion.symbol}
+                      role="option"
+                      aria-selected={false}
+                      // mousedown fires before the input's blur, which would otherwise close the list first.
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        chooseSuggestion(suggestion);
+                      }}
+                    >
+                      <strong>{suggestion.symbol}</strong>
+                      <span>{suggestion.name}</span>
+                      <small>{suggestion.exchange}</small>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </label>
             <label>
               <span>Option Type</span>
