@@ -11,6 +11,8 @@ import com.optionpricing.service.OptionPricingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,6 +21,8 @@ import java.util.List;
 @RequestMapping("/api/v1")
 @Tag(name = "Option Pricing", description = "Pricing, market-data, history, and analytics endpoints.")
 public class PricingController {
+    public static final String TOTAL_COUNT_HEADER = "X-Total-Count";
+
     private final OptionPricingService service;
 
     public PricingController(OptionPricingService service) {
@@ -50,13 +54,20 @@ public class PricingController {
     }
 
     @GetMapping("/history")
-    @Operation(summary = "Return recent pricing requests. Protected by X-API-Key when API_KEY is configured.")
-    List<PricingHistoryResponse> history() {
-        return service.history();
+    @Operation(summary = "Return saved pricing requests, newest first. Filter with ticker, page with page and size; the X-Total-Count header holds the total number of matching rows.")
+    ResponseEntity<List<PricingHistoryResponse>> history(
+            @RequestParam(required = false) String ticker,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size
+    ) {
+        Page<PricingHistoryResponse> result = service.history(ticker, page, size);
+        return ResponseEntity.ok()
+                .header(TOTAL_COUNT_HEADER, String.valueOf(result.getTotalElements()))
+                .body(result.getContent());
     }
 
     @GetMapping("/history/analytics")
-    @Operation(summary = "Return aggregate pricing request analytics. Protected by X-API-Key when API_KEY is configured.")
+    @Operation(summary = "Return aggregate pricing request analytics.")
     PricingAnalyticsResponse analytics() {
         return service.analytics();
     }

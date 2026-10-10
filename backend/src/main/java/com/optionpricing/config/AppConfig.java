@@ -40,6 +40,8 @@ public class AppConfig {
                         .allowedOrigins(origins)
                         .allowedMethods("GET", "POST", "OPTIONS")
                         .allowedHeaders("Content-Type", "Authorization", "X-API-Key")
+                        // Lets the browser app read the history total for paging.
+                        .exposedHeaders("X-Total-Count")
                         .maxAge(3600);
             }
         };

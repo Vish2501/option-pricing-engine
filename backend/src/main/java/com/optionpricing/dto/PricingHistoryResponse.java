@@ -13,6 +13,7 @@ public record PricingHistoryResponse(
         LocalDate expiry,
         OptionType optionType,
         double riskFreeRate,
+        double dividendYield,
         double volatility,
         double blackScholesPrice,
         double monteCarloPrice,

@@ -6,6 +6,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -33,6 +35,7 @@ import java.util.Map;
  */
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {
+    private static final Logger logger = LoggerFactory.getLogger(RateLimitFilter.class);
     private static final long MINUTE_MILLIS = 60_000;
     private static final long HOUR_MILLIS = 3_600_000;
     private static final String ALL_CLIENTS = "*";
@@ -78,6 +81,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
 
         if (retryAfterSeconds > 0) {
+            logger.warn("Rate limit exceeded for {} {} from {}", request.getMethod(), request.getRequestURI(), client);
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
             response.setHeader(HttpHeaders.RETRY_AFTER, String.valueOf(retryAfterSeconds));
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);

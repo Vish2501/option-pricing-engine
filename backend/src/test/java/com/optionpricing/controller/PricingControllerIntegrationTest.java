@@ -17,8 +17,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDate;
 import static org.mockito.Mockito.when;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -111,9 +113,107 @@ class PricingControllerIntegrationTest {
     }
 
     @Test
-    void historyEndpointReturnsLoggedRequests() throws Exception {
+    void priceEndpointReturnsAndSavesDividendYield() throws Exception {
+        repository.deleteAll();
+        String expiry = LocalDate.now().plusDays(30).toString();
+
+        mockMvc.perform(post("/api/v1/price")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"ticker": "KO", "spotPrice": 60, "strike": 60, "expiry": "%s",
+                                 "optionType": "PUT", "volatility": 0.18, "dividendYield": 0.03}
+                                """.formatted(expiry)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dividendYield").value(0.03));
+
         mockMvc.perform(get("/api/v1/history"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].ticker").value("KO"))
+                .andExpect(jsonPath("$[0].dividendYield").value(0.03));
+    }
+
+    @Test
+    void impliedVolatilityIsNullWhenTheMarketPriceIsImpossible() throws Exception {
+        String expiry = LocalDate.now().plusDays(30).toString();
+
+        // A call cannot cost more than the stock itself.
+        mockMvc.perform(post("/api/v1/price")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"ticker": "AAPL", "spotPrice": 100, "strike": 100, "expiry": "%s",
+                                 "optionType": "CALL", "volatility": 0.2, "marketPrice": 150}
+                                """.formatted(expiry)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.impliedVolatility").value(nullValue()));
+    }
+
+    @Test
+    void historyIsNewestFirstAndCanBeFilteredAndPaged() throws Exception {
+        repository.deleteAll();
+        repository.save(log("AAPL", 10.0, 10.4, 10.1));
+        repository.save(log("MSFT", 30.0, 30.0, 30.2));
+        repository.save(log("AAPL", 20.0, 19.0, 20.5));
+
+        mockMvc.perform(get("/api/v1/history"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "3"))
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[0].blackScholesPrice").value(20.0))
+                .andExpect(jsonPath("$[2].blackScholesPrice").value(10.0));
+
+        mockMvc.perform(get("/api/v1/history").param("ticker", "aapl"))
+                .andExpect(header().string("X-Total-Count", "2"))
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].ticker").value("AAPL"))
+                .andExpect(jsonPath("$[1].ticker").value("AAPL"));
+
+        mockMvc.perform(get("/api/v1/history").param("page", "1").param("size", "2"))
+                .andExpect(header().string("X-Total-Count", "3"))
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].blackScholesPrice").value(10.0));
+    }
+
+    @Test
+    void historyRejectsBadPagingAndFilterValues() throws Exception {
+        mockMvc.perform(get("/api/v1/history").param("size", "1000"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").exists());
+        mockMvc.perform(get("/api/v1/history").param("page", "abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("page has an invalid value."));
+        mockMvc.perform(get("/api/v1/history").param("ticker", "AAPL<script>"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").exists());
+    }
+
+    @Test
+    void malformedJsonAndUnknownOptionTypeUseTheStandardErrorShape() throws Exception {
+        mockMvc.perform(post("/api/v1/price").contentType(MediaType.APPLICATION_JSON).content("{not json"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").exists())
+                .andExpect(jsonPath("$.timestamp").exists());
+
+        mockMvc.perform(post("/api/v1/price")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"ticker": "AAPL", "strike": 100, "expiry": "2099-01-01", "optionType": "STRADDLE"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").exists())
+                .andExpect(jsonPath("$.timestamp").exists());
+    }
+
+    @Test
+    void unknownPathAndWrongMethodUseTheStandardErrorShape() throws Exception {
+        mockMvc.perform(get("/api/v1/does-not-exist"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").exists());
+        mockMvc.perform(get("/api/v1/price"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.message").exists());
+        mockMvc.perform(get("/api/v1/tickers/search"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").exists());
     }
 
     @Test

@@ -43,6 +43,9 @@ public class PricingRequestLog {
     private double riskFreeRate;
 
     @Column(nullable = false)
+    private double dividendYield;
+
+    @Column(nullable = false)
     private double volatility;
 
     @Column(nullable = false)

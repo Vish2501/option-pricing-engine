@@ -4,9 +4,16 @@ import com.optionpricing.dto.*;
 import com.optionpricing.entity.PricingRequestLog;
 import com.optionpricing.model.ExerciseStyle;
 import com.optionpricing.model.OptionType;
+import com.optionpricing.model.TickerSymbol;
 import com.optionpricing.repository.PricingRequestLogRepository;
 import com.optionpricing.repository.PricingRequestLogRepository.AnalyticsSummary;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -14,9 +21,13 @@ import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalDouble;
 
 @Service
 public class OptionPricingService {
+    private static final Logger logger = LoggerFactory.getLogger(OptionPricingService.class);
+    private static final int MAX_HISTORY_PAGE_SIZE = 100;
+
     private final double defaultRiskFreeRate;
     private final double defaultDividendYield;
     private final BlackScholesService blackScholesService;
@@ -49,6 +60,7 @@ public class OptionPricingService {
     public PricingResponse price(PricingRequest request) {
         PricingResponse response = calculate(request, true);
         repository.save(toEntity(response));
+        logger.info("Priced {} {} strike {} expiring {}", response.ticker(), response.optionType(), response.strike(), response.expiry());
         return response;
     }
 
@@ -77,10 +89,16 @@ public class OptionPricingService {
         return new ComparisonResponse(market.ticker(), market.livePrice(), market.historicalVolatility(), call, put);
     }
 
-    public List<PricingHistoryResponse> history() {
-        return repository.findTop50ByOrderByRequestedAtDesc().stream()
-                .map(this::toHistoryResponse)
-                .toList();
+    // Newest first, optionally for one ticker. The id tie-break keeps pages stable when timestamps match.
+    public Page<PricingHistoryResponse> history(String ticker, int page, int size) {
+        if (page < 0 || size < 1 || size > MAX_HISTORY_PAGE_SIZE) {
+            throw new IllegalArgumentException("page must be 0 or more and size between 1 and " + MAX_HISTORY_PAGE_SIZE + ".");
+        }
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "requestedAt", "id"));
+        Page<PricingRequestLog> logs = ticker == null || ticker.isBlank()
+                ? repository.findAll(pageable)
+                : repository.findByTicker(TickerSymbol.normalize(ticker), pageable);
+        return logs.map(this::toHistoryResponse);
     }
 
     public PricingAnalyticsResponse analytics() {
@@ -126,11 +144,15 @@ public class OptionPricingService {
         double binomial = binomialTreeService.price(request.optionType(), spot, request.strike(), timeYears, rate, dividendYield, volatility);
         double americanBinomial = binomialTreeService.price(request.optionType(), ExerciseStyle.AMERICAN, spot, request.strike(), timeYears, rate, dividendYield, volatility);
         GreeksResponse greeks = blackScholesResult.greeks();
-        Double impliedVolatility = request.marketPrice() == null ? null : impliedVolatilityService.impliedVolatility(
-                request.optionType(), request.marketPrice(), spot, request.strike(), timeYears, rate, dividendYield);
+        Double impliedVolatility = null;
+        if (request.marketPrice() != null) {
+            OptionalDouble solved = impliedVolatilityService.impliedVolatility(
+                    request.optionType(), request.marketPrice(), spot, request.strike(), timeYears, rate, dividendYield);
+            impliedVolatility = solved.isPresent() ? solved.getAsDouble() : null;
+        }
 
         return new PricingResponse(
-                ticker, spot, request.strike(), request.expiry(), timeYears, request.optionType(), rate, volatility,
+                ticker, spot, request.strike(), request.expiry(), timeYears, request.optionType(), rate, dividendYield, volatility,
                 blackScholes, monteCarlo.price(), monteCarlo.standardError(), binomial, americanBinomial,
                 americanBinomial - binomial, impliedVolatility, greeks);
     }
@@ -143,6 +165,7 @@ public class OptionPricingService {
         log.setExpiry(response.expiry());
         log.setOptionType(response.optionType());
         log.setRiskFreeRate(response.riskFreeRate());
+        log.setDividendYield(response.dividendYield());
         log.setVolatility(response.volatility());
         log.setBlackScholesPrice(response.blackScholesPrice());
         log.setMonteCarloPrice(response.monteCarloPrice());
@@ -165,6 +188,7 @@ public class OptionPricingService {
                 log.getExpiry(),
                 log.getOptionType(),
                 log.getRiskFreeRate(),
+                log.getDividendYield(),
                 log.getVolatility(),
                 log.getBlackScholesPrice(),
                 log.getMonteCarloPrice(),

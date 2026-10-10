@@ -3,6 +3,9 @@ package com.optionpricing.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.optionpricing.dto.MarketDataResponse;
 import com.optionpricing.dto.TickerSearchResult;
+import com.optionpricing.model.TickerSymbol;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
@@ -15,7 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Pattern;
 
 @Service
 public class MarketDataService {
@@ -31,8 +33,8 @@ public class MarketDataService {
     private static final int MAX_SEARCH_QUERY_LENGTH = 40;
     private static final int MAX_SEARCH_RESULTS = 6;
     private static final Set<String> SEARCHABLE_TYPES = Set.of("EQUITY", "ETF");
-    // Same shape PricingRequest accepts, so every suggestion can be priced. Leaves out futures (=F) and indices (^).
-    private static final Pattern PRICEABLE_SYMBOL = Pattern.compile("^[A-Za-z0-9.\\-]{1,12}$");
+
+    private static final Logger logger = LoggerFactory.getLogger(MarketDataService.class);
 
     private final RestClient restClient;
     private final Map<String, CachedMarketData> cache = new ConcurrentHashMap<>();
@@ -42,13 +44,14 @@ public class MarketDataService {
     }
 
     public MarketDataResponse getMarketData(String ticker) {
-        String normalizedTicker = ticker.trim().toUpperCase();
+        String normalizedTicker = TickerSymbol.normalize(ticker);
         CachedMarketData cached = cache.get(normalizedTicker);
         if (cached != null && cached.fetchedAt().plus(CACHE_TTL).isAfter(Instant.now())) {
             return cached.data();
         }
 
         MarketDataResponse data = fetchMarketData(normalizedTicker);
+        logger.info("Fetched market data for {} from Yahoo Finance", normalizedTicker);
         cache.put(normalizedTicker, new CachedMarketData(data, Instant.now()));
         return data;
     }
@@ -59,7 +62,7 @@ public class MarketDataService {
         try {
             getMarketData(ticker);
         } catch (MarketDataUnavailableException ex) {
-            // Cannot verify right now - allow it.
+            logger.warn("Could not verify ticker {} because market data is unavailable; allowing the request", ticker);
         }
     }
 
@@ -80,6 +83,7 @@ public class MarketDataService {
                     .body(JsonNode.class);
             quotes = response == null ? null : response.path("quotes");
         } catch (RestClientException ex) {
+            logger.warn("Yahoo Finance search request failed: {}", ex.getMessage());
             throw new MarketDataUnavailableException("Unable to search Yahoo Finance for " + trimmed, ex);
         }
 
@@ -91,7 +95,8 @@ public class MarketDataService {
             String symbol = quote.path("symbol").asText("");
             if (results.size() < MAX_SEARCH_RESULTS
                     && SEARCHABLE_TYPES.contains(quote.path("quoteType").asText(""))
-                    && PRICEABLE_SYMBOL.matcher(symbol).matches()) {
+                    // Only symbols the pricing form accepts; this leaves out futures (=F) and indices (^).
+                    && TickerSymbol.isValid(symbol)) {
                 String name = quote.path("longname").asText(quote.path("shortname").asText(symbol));
                 results.add(new TickerSearchResult(symbol, name, quote.path("exchDisp").asText("")));
             }
@@ -130,6 +135,7 @@ public class MarketDataService {
             // Yahoo answers 404 for symbols it does not know - that is the caller's mistake, not an outage.
             throw new IllegalArgumentException("Invalid ticker or no Yahoo Finance data available: " + ticker, ex);
         } catch (RestClientException ex) {
+            logger.warn("Yahoo Finance chart request failed for {}: {}", ticker, ex.getMessage());
             throw new MarketDataUnavailableException("Unable to fetch Yahoo Finance data for ticker " + ticker, ex);
         }
     }

@@ -1,11 +1,14 @@
 package com.optionpricing.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.optionpricing.dto.ApiErrorResponse;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -19,9 +22,11 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     private static final String API_KEY_HEADER = "X-API-Key";
 
     private final String apiKey;
+    private final ObjectMapper objectMapper;
 
-    public ApiKeyAuthenticationFilter(@Value("${security.api-key:}") String apiKey) {
+    public ApiKeyAuthenticationFilter(@Value("${security.api-key:}") String apiKey, ObjectMapper objectMapper) {
         this.apiKey = apiKey;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -41,8 +46,8 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
         if (!StringUtils.hasText(providedKey) || !MessageDigest.isEqual(bytes(apiKey), bytes(providedKey))) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"message\":\"Missing or invalid API key.\"}");
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            objectMapper.writeValue(response.getWriter(), ApiErrorResponse.of("Missing or invalid API key."));
             return;
         }
 

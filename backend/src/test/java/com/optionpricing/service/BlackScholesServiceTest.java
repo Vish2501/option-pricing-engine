@@ -3,6 +3,8 @@ package com.optionpricing.service;
 import com.optionpricing.dto.GreeksResponse;
 import com.optionpricing.model.OptionType;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.data.Offset.offset;
@@ -70,5 +72,44 @@ class BlackScholesServiceTest {
         assertThat(call - put).isCloseTo(expectedDifference, offset(1e-9));
     }
 
+    // Each Greek is the slope of the price in one input, so nudging that input and re-pricing
+    // should give the same number. This checks calls and puts, with a dividend yield.
+    @ParameterizedTest
+    @EnumSource(OptionType.class)
+    void greeksMatchTheSlopeOfThePrice(OptionType type) {
+        double spot = 100;
+        double strike = 105;
+        double timeYears = 0.75;
+        double rate = 0.04;
+        double dividendYield = 0.02;
+        double volatility = 0.25;
+        double bump = 1e-4;
 
+        GreeksResponse greeks = service.greeks(type, spot, strike, timeYears, rate, dividendYield, volatility);
+
+        double spotUp = service.price(type, spot + bump, strike, timeYears, rate, dividendYield, volatility);
+        double spotDown = service.price(type, spot - bump, strike, timeYears, rate, dividendYield, volatility);
+        double base = service.price(type, spot, strike, timeYears, rate, dividendYield, volatility);
+        assertThat(greeks.delta()).isCloseTo((spotUp - spotDown) / (2 * bump), offset(1e-6));
+        assertThat(greeks.gamma()).isCloseTo((spotUp - 2 * base + spotDown) / (bump * bump), offset(1e-4));
+
+        double volUp = service.price(type, spot, strike, timeYears, rate, dividendYield, volatility + bump);
+        double volDown = service.price(type, spot, strike, timeYears, rate, dividendYield, volatility - bump);
+        assertThat(greeks.vega()).isCloseTo((volUp - volDown) / (2 * bump), offset(1e-5));
+
+        double rateUp = service.price(type, spot, strike, timeYears, rate + bump, dividendYield, volatility);
+        double rateDown = service.price(type, spot, strike, timeYears, rate - bump, dividendYield, volatility);
+        assertThat(greeks.rho()).isCloseTo((rateUp - rateDown) / (2 * bump), offset(1e-5));
+
+        // Theta is the change as time passes, i.e. as time to expiry shrinks.
+        double later = service.price(type, spot, strike, timeYears - bump, rate, dividendYield, volatility);
+        double earlier = service.price(type, spot, strike, timeYears + bump, rate, dividendYield, volatility);
+        assertThat(greeks.theta()).isCloseTo((later - earlier) / (2 * bump), offset(1e-5));
+    }
+
+    @Test
+    void putDeltaIsNegativeAndCallDeltaIsPositive() {
+        assertThat(service.delta(OptionType.CALL, 100, 100, 1, 0.05, 0.0, 0.2)).isBetween(0.0, 1.0);
+        assertThat(service.delta(OptionType.PUT, 100, 100, 1, 0.05, 0.0, 0.2)).isBetween(-1.0, 0.0);
+    }
 }

@@ -12,6 +12,7 @@ public record PricingResponse(
         double timeToMaturityYears,
         OptionType optionType,
         double riskFreeRate,
+        double dividendYield,
         double volatility,
         double blackScholesPrice,
         double monteCarloPrice,
@@ -22,6 +23,7 @@ public record PricingResponse(
         double americanBinomialPrice,
         // What the right to exercise early is worth: American price minus European price.
         double earlyExercisePremium,
+        // Null when no market price was given, or when the market price breaks no-arbitrage bounds.
         Double impliedVolatility,
         GreeksResponse greeks
 ) {

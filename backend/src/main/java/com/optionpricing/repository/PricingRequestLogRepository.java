@@ -1,13 +1,15 @@
 package com.optionpricing.repository;
 
 import com.optionpricing.entity.PricingRequestLog;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 
 public interface PricingRequestLogRepository extends JpaRepository<PricingRequestLog, Long> {
-    List<PricingRequestLog> findTop50ByOrderByRequestedAtDesc();
+    Page<PricingRequestLog> findByTicker(String ticker, Pageable pageable);
 
     // Aggregated in the database so the table never has to be loaded into memory.
     // Model spread is the gap between the highest and lowest of the three model prices.
