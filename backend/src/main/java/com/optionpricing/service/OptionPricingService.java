@@ -55,6 +55,10 @@ public class OptionPricingService {
         return marketDataService.getMarketData(ticker);
     }
 
+    public List<TickerSearchResult> searchTickers(String query) {
+        return marketDataService.search(query);
+    }
+
     public ComparisonResponse compare(String ticker) {
         MarketDataResponse market = stock(ticker);
         LocalDate expiry = LocalDate.now().plusDays(30);
@@ -104,6 +108,9 @@ public class OptionPricingService {
         MarketDataResponse market = null;
         if (allowMarketLookup && (request.spotPrice() == null || request.volatility() == null)) {
             market = stock(ticker);
+        } else if (allowMarketLookup) {
+            // Inputs were typed in by hand, so nothing has checked the symbol is real yet.
+            marketDataService.requireKnownTicker(ticker);
         }
 
         double spot = request.spotPrice() != null ? request.spotPrice() : market.livePrice();

@@ -6,6 +6,7 @@ import com.optionpricing.dto.PricingAnalyticsResponse;
 import com.optionpricing.dto.PricingHistoryResponse;
 import com.optionpricing.dto.PricingRequest;
 import com.optionpricing.dto.PricingResponse;
+import com.optionpricing.dto.TickerSearchResult;
 import com.optionpricing.service.OptionPricingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,6 +35,12 @@ public class PricingController {
     @Operation(summary = "Fetch live price and historical volatility for a ticker.")
     MarketDataResponse stock(@PathVariable String ticker) {
         return service.stock(ticker);
+    }
+
+    @GetMapping("/tickers/search")
+    @Operation(summary = "Search for stocks and ETFs by company name or symbol.")
+    List<TickerSearchResult> searchTickers(@RequestParam("q") String query) {
+        return service.searchTickers(query);
     }
 
     @GetMapping("/price/compare/{ticker}")
