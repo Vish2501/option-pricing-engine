@@ -1,10 +1,10 @@
 # Option Pricing Backend
 
-Spring Boot API inspired by [saeedbidi/option_pricing](https://github.com/saeedbidi/option_pricing). It ports the core Python/Streamlit finance workflow into a Java backend: Yahoo market data, historical volatility, Black-Scholes, Monte Carlo, Binomial Tree, Greeks, implied volatility, and PostgreSQL request logging.
+Spring Boot API for the options pricing engine: Black-Scholes, Monte Carlo and binomial-tree pricing, Greeks, implied volatility, Yahoo market data, and a PostgreSQL request log with SQL analytics. See the [project README](../README.md) for the overview and how it relates to the Python project it started from.
 
 ## Stack
 
-- Java 17
+- Java 17 (builds and runs on 17 or 21; Spring Boot 3.2 does not support newer versions)
 - Spring Boot 3.2
 - Maven
 - Spring Web
@@ -14,7 +14,7 @@ Spring Boot API inspired by [saeedbidi/option_pricing](https://github.com/saeedb
 - PostgreSQL
 - Flyway migrations
 - Apache Commons Math
-- H2 for integration tests
+- H2 for most integration tests, real PostgreSQL for one
 
 ## Project Structure
 
@@ -126,19 +126,29 @@ http://localhost:8080/health
 }
 ```
 
-`spotPrice`, `volatility`, `riskFreeRate`, and `marketPrice` are optional. If spot or volatility are omitted, Yahoo chart data is used and volatility is annualized from the latest 30 daily log returns.
+`spotPrice`, `volatility`, `riskFreeRate`, `dividendYield` and `marketPrice` are optional. If spot or volatility are omitted, Yahoo chart data is used and volatility is annualized from the latest 30 daily log returns. The ticker must be one Yahoo recognises, even when every input is supplied.
 
 Other endpoints:
 
 ```text
 GET /api/v1/stock/{ticker}
+GET /api/v1/tickers/search?q={name or symbol}
 GET /api/v1/price/compare/{ticker}
-GET /api/v1/history
+GET /api/v1/history?ticker={symbol}&page={n}&size={1-100}
 GET /api/v1/history/analytics
 ```
 
-Every `/api/v1/price` request is saved to the `pricing_requests` table.
-The application also accepts the legacy `/api/...` routes for local backwards compatibility.
+Every `/api/v1/price` request is saved to the `pricing_requests` table. `GET /history` returns
+the newest first; `ticker`, `page` and `size` are optional, and the `X-Total-Count` response
+header holds the number of matching rows.
+
+Every error, whatever its cause, has the same shape:
+
+```json
+{ "message": "strike must not be null", "timestamp": "2026-10-10T15:22:51Z" }
+```
+
+Market data is cached in memory for 15 minutes per ticker.
 
 ## Production Profile
 
@@ -187,7 +197,15 @@ CORS_ALLOWED_ORIGINS=https://<your-vercel-app>.vercel.app
 
 ## Finance Notes
 
-Black-Scholes gives the closed-form European option price and Greeks. Vega, Theta, and Rho are returned in the same raw annual convention used by the referenced Python report.
+Black-Scholes gives the closed-form European option price and Greeks. The Greeks are returned in raw units:
+
+| Greek | Meaning of one unit | To get the usual quoted figure |
+|---|---|---|
+| Delta | Price change per $1 move in the stock | as is |
+| Gamma | Delta change per $1 move in the stock | as is |
+| Vega | Price change per 1.00 (100 percentage points) of volatility | divide by 100 for per-point vega |
+| Theta | Price change per year of time passing | divide by 365 for per-day theta |
+| Rho | Price change per 1.00 (100 percentage points) of interest rate | divide by 100 for per-point rho |
 
 Monte Carlo simulates terminal prices with Geometric Brownian Motion:
 
@@ -201,13 +219,25 @@ The same tree also prices American exercise: at every node the value is the larg
 
 Monte Carlo returns `monteCarloStandardError` alongside its price. The simulation uses a fixed seed so the same inputs always give the same answer; the standard error reports how far that single draw could be from the true price.
 
-Implied volatility is solved from a market option price using Newton-Raphson first, then bisection as a fallback.
+Implied volatility is solved from a market option price using Newton-Raphson first, then bisection as a fallback. Before solving, the market price is checked against no-arbitrage bounds: an option cannot be worth less than its value at zero volatility or more than its value at unlimited volatility. Outside those bounds no volatility fits, and `impliedVolatility` is returned as `null`.
 
 ## Test
 
 ```bash
 mvn test
 ```
+
+One test, `PostgresIntegrationTest`, runs the Flyway migrations and the aggregate queries
+against a real PostgreSQL database. It is skipped unless `POSTGRES_TEST_URL` is set:
+
+```bash
+export POSTGRES_TEST_URL=jdbc:postgresql://localhost:5432/option_pricing_test
+export POSTGRES_TEST_USERNAME=postgres
+export POSTGRES_TEST_PASSWORD=postgres
+mvn test
+```
+
+CI always runs it.
 
 Tests include the Python project sample report values:
 

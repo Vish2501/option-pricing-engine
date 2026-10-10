@@ -1,208 +1,188 @@
 # Options Pricing Engine
 
-Full-stack options-pricing project built with Java, Spring Boot, PostgreSQL, REST APIs, and React.
+[![CI](https://github.com/Vish2501/option-pricing-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/Vish2501/option-pricing-engine/actions/workflows/ci.yml)
 
-The backend is inspired by the Python/Streamlit project [saeedbidi/option_pricing](https://github.com/saeedbidi/option_pricing), but implemented as a production-style Java REST API with a separate React frontend.
+Prices equity options with three models side by side, backs out implied volatility, and
+keeps a queryable log of every request. Java and Spring Boot API, PostgreSQL, React front end.
 
-## Features
+**Live demo:** https://option-pricing-engine-delta.vercel.app
+(API docs: https://option-pricing-api.onrender.com/swagger-ui.html)
 
-- Black-Scholes pricing for call and put options
-- Monte Carlo simulation using Geometric Brownian Motion, with a standard error on the estimate
-- Cox-Ross-Rubinstein Binomial Tree pricing for European and American exercise
-- Greeks: Delta, Gamma, Vega, Theta, Rho
-- Implied volatility with Newton-Raphson and bisection fallback
-- Yahoo Finance live price lookup
-- Historical volatility from recent daily close prices
-- PostgreSQL logging of pricing requests and model outputs
-- Flyway database migration for deployable schema setup
-- Versioned REST API with Swagger/OpenAPI documentation
-- Per-IP rate limiting on the public API, with a tighter limit on pricing requests
-- DTO validation, global error responses, and integration tests
-- React dashboard for pricing, Greeks, implied volatility, and history
+> The demo runs on free hosting that sleeps when idle. Outside UK working hours the first
+> request can take up to three minutes while the server wakes; the page says so while it waits.
 
-## Project Structure
+![The pricing form, model outputs, usage analytics and request history](docs/screenshot.jpg)
 
-```text
-option-pricing-engine/
-├── backend/    # Spring Boot API
-└── frontend/   # React + Vite UI
+## What it does
+
+- **Three pricing models, compared.** Black-Scholes-Merton (closed form), Monte Carlo
+  (10,000 simulated paths) and a Cox-Ross-Rubinstein binomial tree (500 steps), all with a
+  continuous dividend yield.
+- **American exercise.** The tree is also run allowing early exercise, and the response
+  reports the early-exercise premium over the European price.
+- **Honest Monte Carlo.** The estimate comes with its standard error, shown as a 95%
+  confidence interval.
+- **Greeks.** Delta, gamma, vega, theta and rho, with their units stated.
+- **Implied volatility.** Newton-Raphson with a bisection fallback. A market price that no
+  volatility could produce (outside no-arbitrage bounds) returns no answer instead of a
+  meaningless one.
+- **Market data.** Search by company name or symbol, then pull the latest price and a
+  30-day historical volatility from Yahoo Finance.
+- **Request log and analytics.** Every pricing is saved to PostgreSQL. History can be
+  filtered by ticker and paged; usage analytics are aggregated in SQL.
+
+## How it relates to the project it started from
+
+This began as a Java port of the Python/Streamlit project
+[saeedbidi/option_pricing](https://github.com/saeedbidi/option_pricing). The choice of models
+and the market-data approach come from there, and one test checks the Black-Scholes price,
+Greeks and implied volatility against that project's sample report.
+
+What this version adds:
+
+- A REST API and a separate React front end in place of a single Streamlit script.
+- PostgreSQL persistence with Flyway migrations, request history and SQL analytics.
+- American exercise, a Monte Carlo standard error, and the no-arbitrage check on implied volatility.
+- Ticker search, market-data caching, input validation and consistent JSON errors.
+- Per-IP rate limiting, since the API is public.
+- Automated tests (including a run against real PostgreSQL), CI, Docker and a live deployment.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Browser["React app<br/>(Vercel)"] -->|JSON over HTTPS| RateLimit
+
+    subgraph API["Spring Boot API (Render)"]
+        RateLimit["Rate limit filter"] --> Controller["PricingController"]
+        Controller --> Service["OptionPricingService"]
+        Service --> BS["BlackScholesService<br/>price + Greeks"]
+        Service --> MC["MonteCarloService"]
+        Service --> Tree["BinomialTreeService<br/>European + American"]
+        Service --> IV["ImpliedVolatilityService"]
+        Service --> Market["MarketDataService<br/>15-minute cache"]
+        Service --> Repo["PricingRequestLogRepository"]
+    end
+
+    Market -->|HTTPS| Yahoo["Yahoo Finance"]
+    Repo --> DB[("PostgreSQL<br/>(Supabase)")]
 ```
 
-## Run Backend
+`OptionPricingService` orchestrates one request: resolve inputs (from the request or from
+market data), run each model, solve implied volatility if a market price was given, and save
+the result. Each model lives in its own service with no dependency on the web or database
+layers, so the maths can be unit-tested directly.
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| API | Java 17, Spring Boot 3.2 (Web, Data JPA, Security, Validation, Actuator), springdoc OpenAPI |
+| Database | PostgreSQL, Flyway migrations |
+| Front end | React 18, TypeScript, Vite |
+| Tests | JUnit 5, MockMvc, Vitest, Testing Library |
+| Delivery | GitHub Actions, Docker, Render (API), Vercel (front end), Supabase (database) |
+
+## Run it locally
+
+You need Java 17 or 21, Maven, Node 20+ and PostgreSQL (or Docker). Spring Boot 3.2 does not
+support newer Java versions; if your default is newer, point `JAVA_HOME` at 17 or 21 first.
 
 ```bash
+# 1. Database
 cd backend
+docker compose up postgres -d
+
+# 2. API on http://localhost:8080
+export SPRING_DATASOURCE_PASSWORD=postgres
 mvn spring-boot:run
-```
 
-The backend runs on:
-
-```text
-http://localhost:8080
-```
-
-By default it expects PostgreSQL:
-
-```text
-database: option_pricing
-username: postgres
-password: empty
-```
-
-If you have Docker installed:
-
-```bash
-cd backend
-docker compose up -d
-```
-
-Or configure your local database:
-
-```bash
-export DATABASE_URL=jdbc:postgresql://localhost:5432/option_pricing
-export DATABASE_USERNAME=postgres
-export DATABASE_PASSWORD=your_password
-```
-
-Render-style variable names are supported too:
-
-```bash
-export SPRING_DATASOURCE_URL=jdbc:postgresql://host:5432/database
-export SPRING_DATASOURCE_USERNAME=database_user
-export SPRING_DATASOURCE_PASSWORD=database_password
-export CORS_ALLOWED_ORIGINS=https://your-vercel-app.vercel.app
-```
-
-The API is public and has no logins; it is protected by per-IP rate limiting (60 requests a
-minute, 10 pricing requests a minute, returning `429` beyond that). See
-[backend/README.md](backend/README.md) for the limits and how to change them.
-
-`API_KEY` should stay unset for the public demo. If you set it, `GET /api/v1/history` and
-`GET /api/v1/history/analytics` require `X-API-Key` or a bearer token. That only suits
-server-to-server callers: the React app does not send a key, because anything shipped to a
-browser is public.
-
-## Run Frontend
-
-```bash
-cd frontend
+# 3. Front end on http://localhost:5173 (proxies /api to the API)
+cd ../frontend
 npm install
 npm run dev
 ```
 
-Open:
+Without Docker, create a database called `option_pricing` and point the API at it with
+`SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` and `SPRING_DATASOURCE_PASSWORD`.
+See [backend/README.md](backend/README.md) for every setting.
 
-```text
-http://localhost:5173
-```
+## API
 
-The frontend proxies `/api` requests to `http://localhost:8080`.
-To use a deployed backend instead, create `frontend/.env.local` with:
+All routes are under `/api/v1`. Interactive docs are at `/swagger-ui.html`.
 
-```text
-VITE_API_BASE_URL=https://option-pricing-api.onrender.com/api/v1
-```
+| Method and path | Purpose |
+|---|---|
+| `POST /price` | Price an option with all models; saves the request |
+| `GET /stock/{ticker}` | Latest price and 30-day historical volatility |
+| `GET /tickers/search?q=` | Find stocks and ETFs by name or symbol |
+| `GET /price/compare/{ticker}` | 30-day at-the-money call and put for a ticker |
+| `GET /history?ticker=&page=&size=` | Saved requests, newest first; total in `X-Total-Count` |
+| `GET /history/analytics` | Request counts by ticker, average prices, average model spread |
 
-## API Endpoints
-
-```text
-POST /api/v1/price
-GET /api/v1/stock/{ticker}
-GET /api/v1/price/compare/{ticker}
-GET /api/v1/history
-GET /api/v1/history/analytics
-```
-
-Swagger UI is available at `http://localhost:8080/swagger-ui.html`.
-Health checks are available at `http://localhost:8080/health`.
-
-## Render + Vercel Deployment
-
-Backend on Render:
-
-```text
-Name: option-pricing-api
-Language: Docker
-Root Directory: backend
-Dockerfile Path: Dockerfile
-Health Check Path: /health
-```
-
-Set these Render environment variables:
-
-```text
-SPRING_PROFILES_ACTIVE=prod
-SPRING_DATASOURCE_URL=jdbc:postgresql://<host>:5432/<database>
-SPRING_DATASOURCE_USERNAME=<user>
-SPRING_DATASOURCE_PASSWORD=<password>
-CORS_ALLOWED_ORIGINS=https://<your-vercel-app>.vercel.app
-```
-
-Frontend on Vercel:
-
-```text
-Root Directory: frontend
-Build Command: npm run build
-Output Directory: dist
-```
-
-For local Docker smoke testing:
-
-```bash
-cd backend
-docker compose up --build
-```
-
-Set these Vercel environment variables:
-
-```text
-VITE_API_BASE_URL=https://<your-render-service>.onrender.com/api/v1
-```
-
-Example pricing request:
+Example request:
 
 ```json
 {
   "ticker": "AAPL",
-  "spotPrice": 100,
-  "strike": 110,
-  "expiry": "2026-06-09",
+  "spotPrice": 226.5,
+  "strike": 207.5,
+  "expiry": "2027-06-18",
   "optionType": "CALL",
   "volatility": 0.2191,
   "riskFreeRate": 0.05,
-  "marketPrice": 0.25
+  "dividendYield": 0.005,
+  "marketPrice": 32.5
 }
 ```
 
-## Test
+Only `ticker`, `strike`, `expiry` and `optionType` are required. A missing spot price or
+volatility is fetched from market data; a missing rate or dividend yield uses the default.
+Errors always come back as `{"message": "...", "timestamp": "..."}`.
 
-Backend:
-
-```bash
-cd backend
-mvn test
-```
-
-Frontend:
+## Tests
 
 ```bash
-cd frontend
-npm run build
+cd backend && mvn test            # 67 tests
+cd frontend && npm test           # 17 tests
+cd frontend && npm run lint
 ```
 
-## Production Checklist
+- **Pricing maths:** known values, put-call parity, tree convergence to Black-Scholes,
+  Greeks checked against finite differences, implied-volatility round trips, American
+  exercise properties, and the Monte Carlo error shrinking with more paths.
+- **API:** validation, error format, history filtering and paging, analytics, rate limiting.
+- **Market data:** Yahoo responses are stubbed, so tests never call the real service.
+- **PostgreSQL:** one test runs the Flyway migrations and the aggregate queries against a
+  real PostgreSQL database. It runs in CI, and locally when `POSTGRES_TEST_URL` is set; the
+  rest use in-memory H2 for speed.
 
-- **Database:** PostgreSQL-backed request log with explicit columns and indexes on ticker and request time.
-- **REST API:** Versioned `/api/v1` endpoints, correct HTTP statuses, DTOs, validation, and Swagger docs.
-- **Design patterns:** Controller, service, repository, DTO, and pricing-strategy style services for each model.
-- **Error handling:** Central exception handler with structured JSON errors.
-- **Security:** No checked-in secrets and no secrets in the frontend bundle; the public API is rate limited per IP.
-- **Testing:** Unit tests for pricing math and integration tests for API validation, persistence, and rate limiting.
-- **Deployment:** Environment-variable configuration for Render/Vercel deployments; Flyway prepares fresh Postgres databases.
-- **Code quality:** Clean repo structure, focused README, and reproducible Maven/Vite build commands.
+## Design decisions and known limitations
 
-## Notes
+- **Market data is unofficial.** Yahoo Finance's chart endpoint has no API contract and can
+  change or rate-limit without notice. Results are cached for 15 minutes to stay well within
+  its limits, so the "live" price can be that old. A paid provider behind the same service
+  would be the fix.
+- **No logins.** The API is public by design. It is protected by rate limiting only, the
+  client is identified by a header that can be forged, and the counters live in memory, so
+  they reset on restart and would not be shared across several instances.
+- **Monte Carlo uses a fixed seed.** The same inputs always give the same price, which keeps
+  results reproducible. The standard error says how far that one draw could be off.
+- **Monte Carlo and Black-Scholes are European only.** American exercise is priced by the
+  tree alone.
+- **Prices are `double`, not `BigDecimal`.** These are model outputs, not ledger amounts,
+  and the numerical error of the models is far larger than floating-point error.
+- **Constant volatility and rates.** No volatility smile, term structure or discrete dividends.
+- **Day count is calendar days over 365.**
+- **Free hosting.** A scheduled GitHub Actions job pings the API during UK working hours to
+  keep it awake; outside those hours the first request is slow.
 
-The three pricing models should be close for European options. Black-Scholes and Binomial Tree should converge closely, while Monte Carlo should be close but not identical because it uses random simulation. Its standard error says how close: the true price is within about 1.96 standard errors of the estimate 95% of the time.
+## Deployment
 
-The binomial tree is also run with American exercise, which allows exercising before expiry. The difference from the European price is the early-exercise premium: zero for a call on a stock that pays no dividends, positive for puts.
+The API deploys to Render from `backend/Dockerfile` and the front end to Vercel from
+`frontend/`; both redeploy on every push to `main`. Settings are in
+[backend/README.md](backend/README.md) and [frontend/README.md](frontend/README.md).
+
+## Licence
+
+[MIT](LICENSE)
