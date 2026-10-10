@@ -341,6 +341,11 @@ input[type="date"] {
   color: #111;
 }
 
+.metric small {
+  font-size: 12px;
+  color: #6b7280;
+}
+
 /* ── GREEKS ── */
 .greeks-grid {
   display: grid;
@@ -451,9 +456,14 @@ input[type="date"] {
   color: #6b7280;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 860px) {
+  .workspace,
   .analytics-layout {
     grid-template-columns: 1fr;
+  }
+
+  .greeks-grid {
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   }
 }
 

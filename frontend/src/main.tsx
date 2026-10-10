@@ -33,7 +33,10 @@ type PricingResponse = {
   volatility: number;
   blackScholesPrice: number;
   monteCarloPrice: number;
+  monteCarloStandardError: number;
   binomialTreePrice: number;
+  americanBinomialPrice: number;
+  earlyExercisePremium: number;
   impliedVolatility: number | null;
   greeks: Greeks;
 };
@@ -44,7 +47,8 @@ type MarketData = {
   historicalVolatility: number;
 };
 
-type HistoryRow = PricingResponse & {
+// Saved rows hold the three European model prices only, not the per-request extras.
+type HistoryRow = Omit<PricingResponse, "monteCarloStandardError" | "americanBinomialPrice" | "earlyExercisePremium"> & {
   id: number;
   requestedAt: string;
   delta: number;
@@ -124,15 +128,6 @@ function App() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [error, setError] = useState("");
   const [waking, setWaking] = useState(false);
-
-  const modelRows = useMemo(() => {
-    if (!result) return [];
-    return [
-      ["Black-Scholes", result.blackScholesPrice],
-      ["Monte Carlo", result.monteCarloPrice],
-      ["Binomial Tree", result.binomialTreePrice]
-    ];
-  }, [result]);
 
   // The API already returns tickers busiest-first; show the top few as bars.
   const tickerCounts = useMemo(
@@ -373,15 +368,32 @@ function App() {
           {result ? (
             <>
               <div className="metric-grid">
-                {modelRows.map(([label, value]) => (
-                  <div className="metric" key={label as string}>
-                    <span>{label}</span>
-                    <strong>${formatNumber(value as number)}</strong>
-                  </div>
-                ))}
+                <div className="metric">
+                  <span>Black-Scholes</span>
+                  <strong>${formatNumber(result.blackScholesPrice)}</strong>
+                  <small>European, closed form</small>
+                </div>
+                <div className="metric">
+                  <span>Monte Carlo</span>
+                  <strong>${formatNumber(result.monteCarloPrice)}</strong>
+                  <small title="95% confidence interval: 1.96 standard errors either side of the estimate">
+                    95% confidence: ±${formatNumber(1.96 * result.monteCarloStandardError)}
+                  </small>
+                </div>
+                <div className="metric">
+                  <span>Binomial Tree</span>
+                  <strong>${formatNumber(result.binomialTreePrice)}</strong>
+                  <small>European exercise</small>
+                </div>
+                <div className="metric">
+                  <span>Binomial Tree, American</span>
+                  <strong>${formatNumber(result.americanBinomialPrice)}</strong>
+                  <small>Early exercise adds ${formatNumber(Math.max(result.earlyExercisePremium, 0))}</small>
+                </div>
                 <div className="metric">
                   <span>Implied Volatility</span>
                   <strong>{result.impliedVolatility ? `${formatNumber(result.impliedVolatility * 100, 2)}%` : "—"}</strong>
+                  <small>From the market price</small>
                 </div>
               </div>
 
