@@ -56,6 +56,8 @@ type HistoryRow = PricingResponse & {
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api/v1";
 const API_KEY = import.meta.env.VITE_API_KEY as string | undefined;
 
+const WAKE_NOTICE_DELAY_MS = 4000;
+
 const today = new Date();
 const defaultExpiry = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
   .toISOString()
@@ -75,7 +77,12 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
     headers.set("X-API-Key", API_KEY);
   }
 
-  const response = await fetch(`${API_BASE_URL}${url}`, { ...init, headers });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${url}`, { ...init, headers });
+  } catch {
+    throw new Error("The server is still waking up. Please try again in a minute.");
+  }
   if (!response.ok) {
     const body = await response.json().catch(() => null);
     throw new Error(body?.message ?? `Request failed with ${response.status}`);
@@ -99,6 +106,7 @@ function App() {
   const [stockLoading, setStockLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [error, setError] = useState("");
+  const [waking, setWaking] = useState(false);
 
   const modelRows = useMemo(() => {
     if (!result) return [];
@@ -112,6 +120,18 @@ function App() {
   useEffect(() => {
     void loadHistory();
   }, []);
+
+  // The API runs on free hosting that sleeps when idle, so a slow request usually
+  // means a cold start - tell the user instead of leaving them with a spinner.
+  async function withWakeNotice<T>(request: Promise<T>): Promise<T> {
+    const timer = window.setTimeout(() => setWaking(true), WAKE_NOTICE_DELAY_MS);
+    try {
+      return await request;
+    } finally {
+      window.clearTimeout(timer);
+      setWaking(false);
+    }
+  }
 
   async function priceOption(event: React.FormEvent) {
     event.preventDefault();
@@ -128,11 +148,11 @@ function App() {
         riskFreeRate: riskFreeRate ? Number(riskFreeRate) : null,
         marketPrice: marketPrice ? Number(marketPrice) : null
       };
-      const data = await requestJson<PricingResponse>("/price", {
+      const data = await withWakeNotice(requestJson<PricingResponse>("/price", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
-      });
+      }));
       setResult(data);
       await loadHistory();
     } catch (err) {
@@ -146,7 +166,7 @@ function App() {
     setStockLoading(true);
     setError("");
     try {
-      const data = await requestJson<MarketData>(`/stock/${ticker}`);
+      const data = await withWakeNotice(requestJson<MarketData>(`/stock/${ticker}`));
       setMarketData(data);
       setSpotPrice(String(Number(data.livePrice.toFixed(4))));
       setVolatility(String(Number(data.historicalVolatility.toFixed(4))));
@@ -160,7 +180,7 @@ function App() {
   async function loadHistory() {
     setHistoryLoading(true);
     try {
-      const data = await requestJson<HistoryRow[]>("/history");
+      const data = await withWakeNotice(requestJson<HistoryRow[]>("/history"));
       setHistory(data.slice(0, 8));
     } catch {
       setHistory([]);
@@ -182,6 +202,12 @@ function App() {
       </section>
 
       {error && <div className="error-banner">{error}</div>}
+      {waking && (
+        <div className="waking-banner">
+          <Loader2 className="spin" size={16} />
+          Waking the server. It runs on free hosting that sleeps when idle, so the first request can take up to three minutes.
+        </div>
+      )}
 
       <section className="workspace">
         <form className="panel pricing-form" onSubmit={priceOption}>
