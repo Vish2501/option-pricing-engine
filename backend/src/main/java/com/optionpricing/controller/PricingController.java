@@ -26,7 +26,7 @@ public class PricingController {
     }
 
     @PostMapping("/price")
-    @Operation(summary = "Price a European option with Black-Scholes, Monte Carlo, and Binomial Tree models.")
+    @Operation(summary = "Price an option with Black-Scholes, Monte Carlo, and Binomial Tree models, including an American-exercise tree price.")
     PricingResponse price(@Valid @RequestBody PricingRequest request) {
         return service.price(request);
     }

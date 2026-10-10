@@ -7,8 +7,8 @@ The backend is inspired by the Python/Streamlit project [saeedbidi/option_pricin
 ## Features
 
 - Black-Scholes pricing for call and put options
-- Monte Carlo simulation using Geometric Brownian Motion
-- Cox-Ross-Rubinstein Binomial Tree pricing
+- Monte Carlo simulation using Geometric Brownian Motion, with a standard error on the estimate
+- Cox-Ross-Rubinstein Binomial Tree pricing for European and American exercise
 - Greeks: Delta, Gamma, Vega, Theta, Rho
 - Implied volatility with Newton-Raphson and bisection fallback
 - Yahoo Finance live price lookup
@@ -203,4 +203,6 @@ npm run build
 
 ## Notes
 
-The three pricing models should be close for European options. Black-Scholes and Binomial Tree should converge closely, while Monte Carlo should be close but not identical because it uses random simulation.
+The three pricing models should be close for European options. Black-Scholes and Binomial Tree should converge closely, while Monte Carlo should be close but not identical because it uses random simulation. Its standard error says how close: the true price is within about 1.96 standard errors of the estimate 95% of the time.
+
+The binomial tree is also run with American exercise, which allows exercising before expiry. The difference from the European price is the early-exercise premium: zero for a call on a stock that pays no dividends, positive for puts.

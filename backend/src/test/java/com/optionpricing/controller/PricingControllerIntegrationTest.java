@@ -61,6 +61,10 @@ class PricingControllerIntegrationTest {
                 .andExpect(jsonPath("$.ticker").value("AAPL"))
                 .andExpect(jsonPath("$.blackScholesPrice").value(closeTo(19.17, 0.05)))
                 .andExpect(jsonPath("$.monteCarloPrice").exists())
+                .andExpect(jsonPath("$.monteCarloStandardError").isNumber())
+                .andExpect(jsonPath("$.americanBinomialPrice").value(closeTo(19.17, 0.08)))
+                // A call on a stock with no dividends is never worth exercising early.
+                .andExpect(jsonPath("$.earlyExercisePremium").value(closeTo(0.0, 1e-9)))
                 .andExpect(jsonPath("$.binomialTreePrice").value(closeTo(19.17, 0.08)))
                 .andExpect(jsonPath("$.impliedVolatility").value(closeTo(0.8216, 0.02)))
                 .andExpect(jsonPath("$.greeks.delta").value(closeTo(0.9983, 0.01)));

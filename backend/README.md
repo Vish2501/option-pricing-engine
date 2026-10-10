@@ -197,6 +197,10 @@ S_T = S * exp((r - 0.5 * sigma^2) * T + sigma * sqrt(T) * Z)
 
 The Binomial Tree uses the Cox-Ross-Rubinstein up/down model and works backward from terminal payoffs. For European options, it converges toward Black-Scholes as the step count increases.
 
+The same tree also prices American exercise: at every node the value is the larger of holding on and exercising immediately. The response returns this as `americanBinomialPrice`, with `earlyExercisePremium` as its difference from the European tree price.
+
+Monte Carlo returns `monteCarloStandardError` alongside its price. The simulation uses a fixed seed so the same inputs always give the same answer; the standard error reports how far that single draw could be from the true price.
+
 Implied volatility is solved from a market option price using Newton-Raphson first, then bisection as a fallback.
 
 ## Test

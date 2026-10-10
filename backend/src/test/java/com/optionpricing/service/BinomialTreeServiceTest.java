@@ -1,5 +1,6 @@
 package com.optionpricing.service;
 
+import com.optionpricing.model.ExerciseStyle;
 import com.optionpricing.model.OptionType;
 import org.junit.jupiter.api.Test;
 
@@ -37,5 +38,38 @@ class BinomialTreeServiceTest {
         double expected = blackScholes.callPrice(100,90,1,0.05,0.03,0.2);
         double actual = binomialTree.price(OptionType.CALL, spot, strike, timeYears, rate, dividendYield, volatility, 1000);
         assertThat(actual).isCloseTo(expected, offset(0.02));
+    }
+
+    @Test
+    void americanCallWithoutDividendsIsWorthTheSameAsEuropean() {
+        // Exercising a call early gives up time value and earns nothing in return when there are no dividends.
+        double european = binomialTree.price(OptionType.CALL, ExerciseStyle.EUROPEAN, 100, 100, 1, 0.05, 0.0, 0.2, 1000);
+        double american = binomialTree.price(OptionType.CALL, ExerciseStyle.AMERICAN, 100, 100, 1, 0.05, 0.0, 0.2, 1000);
+
+        assertThat(american).isCloseTo(european, offset(1e-9));
+    }
+
+    @Test
+    void americanPutIsWorthMoreThanEuropeanAndMatchesTheTextbookValue() {
+        double european = binomialTree.price(OptionType.PUT, ExerciseStyle.EUROPEAN, 100, 100, 1, 0.05, 0.0, 0.2, 1000);
+        double american = binomialTree.price(OptionType.PUT, ExerciseStyle.AMERICAN, 100, 100, 1, 0.05, 0.0, 0.2, 1000);
+
+        assertThat(american).isGreaterThan(european);
+        assertThat(american).isCloseTo(6.09, offset(0.01));
+    }
+
+    @Test
+    void americanCallWithDividendsCarriesAnEarlyExercisePremium() {
+        double european = binomialTree.price(OptionType.CALL, ExerciseStyle.EUROPEAN, 100, 90, 1, 0.05, 0.08, 0.2, 1000);
+        double american = binomialTree.price(OptionType.CALL, ExerciseStyle.AMERICAN, 100, 90, 1, 0.05, 0.08, 0.2, 1000);
+
+        assertThat(american).isGreaterThan(european);
+    }
+
+    @Test
+    void americanOptionIsNeverWorthLessThanExercisingImmediately() {
+        double american = binomialTree.price(OptionType.PUT, ExerciseStyle.AMERICAN, 80, 100, 1, 0.05, 0.0, 0.2, 1000);
+
+        assertThat(american).isGreaterThanOrEqualTo(20.0);
     }
 }

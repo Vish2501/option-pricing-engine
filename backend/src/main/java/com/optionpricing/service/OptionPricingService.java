@@ -2,6 +2,7 @@ package com.optionpricing.service;
 
 import com.optionpricing.dto.*;
 import com.optionpricing.entity.PricingRequestLog;
+import com.optionpricing.model.ExerciseStyle;
 import com.optionpricing.model.OptionType;
 import com.optionpricing.repository.PricingRequestLogRepository;
 import com.optionpricing.repository.PricingRequestLogRepository.AnalyticsSummary;
@@ -121,15 +122,17 @@ public class OptionPricingService {
 
         PricingResult blackScholesResult = blackScholesService.priceWithGreeks(request.optionType(), spot, request.strike(), timeYears, rate, dividendYield, volatility);
         double blackScholes = blackScholesResult.price();
-        double monteCarlo = monteCarloService.price(request.optionType(), spot, request.strike(), timeYears, rate, dividendYield, volatility);
+        MonteCarloResult monteCarlo = monteCarloService.simulate(request.optionType(), spot, request.strike(), timeYears, rate, dividendYield, volatility);
         double binomial = binomialTreeService.price(request.optionType(), spot, request.strike(), timeYears, rate, dividendYield, volatility);
+        double americanBinomial = binomialTreeService.price(request.optionType(), ExerciseStyle.AMERICAN, spot, request.strike(), timeYears, rate, dividendYield, volatility);
         GreeksResponse greeks = blackScholesResult.greeks();
         Double impliedVolatility = request.marketPrice() == null ? null : impliedVolatilityService.impliedVolatility(
                 request.optionType(), request.marketPrice(), spot, request.strike(), timeYears, rate, dividendYield);
 
         return new PricingResponse(
                 ticker, spot, request.strike(), request.expiry(), timeYears, request.optionType(), rate, volatility,
-                blackScholes, monteCarlo, binomial, impliedVolatility, greeks);
+                blackScholes, monteCarlo.price(), monteCarlo.standardError(), binomial, americanBinomial,
+                americanBinomial - binomial, impliedVolatility, greeks);
     }
 
     private PricingRequestLog toEntity(PricingResponse response) {
