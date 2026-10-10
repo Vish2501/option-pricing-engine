@@ -14,6 +14,25 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    # A real PostgreSQL for the test that checks the migrations and aggregate queries.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: option_pricing_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTGRES_TEST_URL: jdbc:postgresql://localhost:5432/option_pricing_test
+      POSTGRES_TEST_USERNAME: postgres
+      POSTGRES_TEST_PASSWORD: postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -37,5 +56,9 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm test
       - name: Type-check and build
         run: npm run build
