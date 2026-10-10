@@ -16,3 +16,6 @@ frontend/dist/
 # Local environment
 .env
 .env.local
+
+# Understand-Anything knowledge graph (generated)
+.ua/
