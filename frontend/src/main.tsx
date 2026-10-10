@@ -6,6 +6,7 @@ import {
   Calculator,
   Database,
   Loader2,
+  PieChart,
   RefreshCw,
   Search
 } from "lucide-react";
@@ -53,10 +54,21 @@ type HistoryRow = PricingResponse & {
   rho: number;
 };
 
+type Analytics = {
+  totalRequests: number;
+  uniqueTickers: number;
+  requestsByTicker: Record<string, number>;
+  averageBlackScholesPrice: number;
+  averageMonteCarloPrice: number;
+  averageBinomialTreePrice: number;
+  averageModelSpread: number;
+};
+
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api/v1";
 const API_KEY = import.meta.env.VITE_API_KEY as string | undefined;
 
 const WAKE_NOTICE_DELAY_MS = 4000;
+const MAX_TICKER_BARS = 8;
 
 const today = new Date();
 const defaultExpiry = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
@@ -102,6 +114,7 @@ function App() {
   const [result, setResult] = useState<PricingResponse | null>(null);
   const [marketData, setMarketData] = useState<MarketData | null>(null);
   const [history, setHistory] = useState<HistoryRow[]>([]);
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(false);
   const [stockLoading, setStockLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -116,6 +129,13 @@ function App() {
       ["Binomial Tree", result.binomialTreePrice]
     ];
   }, [result]);
+
+  // The API already returns tickers busiest-first; show the top few as bars.
+  const tickerCounts = useMemo(
+    () => Object.entries(analytics?.requestsByTicker ?? {}).slice(0, MAX_TICKER_BARS),
+    [analytics]
+  );
+  const busiestCount = tickerCounts.length ? tickerCounts[0][1] : 0;
 
   useEffect(() => {
     void loadHistory();
@@ -180,10 +200,15 @@ function App() {
   async function loadHistory() {
     setHistoryLoading(true);
     try {
-      const data = await withWakeNotice(requestJson<HistoryRow[]>("/history"));
-      setHistory(data.slice(0, 8));
+      const [rows, summary] = await withWakeNotice(Promise.all([
+        requestJson<HistoryRow[]>("/history"),
+        requestJson<Analytics>("/history/analytics")
+      ]));
+      setHistory(rows.slice(0, 8));
+      setAnalytics(summary);
     } catch {
       setHistory([]);
+      setAnalytics(null);
     } finally {
       setHistoryLoading(false);
     }
@@ -311,6 +336,50 @@ function App() {
             <div className="empty-state">Run a calculation to compare pricing models and Greeks.</div>
           )}
         </section>
+      </section>
+
+      <section className="panel analytics-panel">
+        <div className="panel-heading">
+          <PieChart size={20} />
+          <h2>Usage Analytics</h2>
+        </div>
+
+        {analytics && analytics.totalRequests > 0 ? (
+          <div className="analytics-layout">
+            <div className="stat-column">
+              <div className="metric">
+                <span>Requests priced</span>
+                <strong>{formatNumber(analytics.totalRequests, 0)}</strong>
+              </div>
+              <div className="metric">
+                <span>Unique tickers</span>
+                <strong>{formatNumber(analytics.uniqueTickers, 0)}</strong>
+              </div>
+              <div className="metric" title="Average gap between the highest and lowest of the three model prices">
+                <span>Avg model spread</span>
+                <strong>${formatNumber(analytics.averageModelSpread)}</strong>
+              </div>
+            </div>
+
+            <figure className="bar-chart">
+              <figcaption>Requests by ticker</figcaption>
+              {tickerCounts.map(([name, count]) => (
+                <div className="bar-row" key={name} title={`${name}: ${count} requests`}>
+                  <span className="bar-label">{name}</span>
+                  <div className="bar-track">
+                    <div className="bar-fill" style={{ width: `${(count / busiestCount) * 100}%` }} />
+                  </div>
+                  <span className="bar-value">{count}</span>
+                </div>
+              ))}
+              {analytics.uniqueTickers > tickerCounts.length && (
+                <p className="bar-note">Showing the {tickerCounts.length} most requested of {analytics.uniqueTickers} tickers.</p>
+              )}
+            </figure>
+          </div>
+        ) : (
+          <div className="empty-state">Analytics appear once pricing requests have been saved.</div>
+        )}
       </section>
 
       <section className="panel history-panel">
