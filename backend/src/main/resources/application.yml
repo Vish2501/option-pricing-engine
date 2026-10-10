@@ -39,6 +39,11 @@ cors:
 security:
   api-key: ${API_KEY:}
 
+rate-limit:
+  requests-per-minute: 60
+  pricing-per-minute: 10
+  pricing-per-hour-all-clients: 300
+
 pricing:
   defaults:
     risk-free-rate: 0.05
