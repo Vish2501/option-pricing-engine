@@ -7,7 +7,7 @@ React + Vite UI for the Spring Boot options-pricing backend.
 Start the backend first:
 
 ```bash
-cd /Users/vish/option-pricing-engine/backend
+cd backend
 docker compose up -d
 mvn spring-boot:run
 ```
@@ -15,7 +15,7 @@ mvn spring-boot:run
 Then start the frontend:
 
 ```bash
-cd /Users/vish/option-pricing-engine/frontend
+cd frontend
 npm install
 npm run dev
 ```
@@ -53,4 +53,28 @@ Set:
 
 ```text
 VITE_API_BASE_URL=https://<your-render-service>.onrender.com/api/v1
+```
+
+## Checks
+
+```bash
+npm run lint    # ESLint
+npm test        # Vitest unit and component tests
+npm run build   # type-check and production build
+```
+
+## Layout
+
+```text
+src/
+├── App.tsx              # page shell; owns the result, analytics and refresh state
+├── api.ts               # every call to the backend
+├── types.ts             # request and response shapes
+├── format.ts            # number and percentage formatting
+├── useWakeNotice.ts     # flags slow requests while the server cold-starts
+└── components/
+    ├── PricingForm.tsx      # inputs, ticker search, market-data lookup
+    ├── ResultsPanel.tsx     # model prices and Greeks
+    ├── AnalyticsPanel.tsx   # usage tiles and requests-by-ticker chart
+    └── HistoryPanel.tsx     # saved requests with filter and paging
 ```
