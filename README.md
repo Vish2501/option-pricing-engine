@@ -179,9 +179,19 @@ cd frontend && npm run lint
 
 ## Deployment
 
-The API deploys to Render from `backend/Dockerfile` and the front end to Vercel from
-`frontend/`; both redeploy on every push to `main`. Settings are in
-[backend/README.md](backend/README.md) and [frontend/README.md](frontend/README.md).
+Every pull request, and every push to `main`, runs three CI jobs: the backend tests
+(including the PostgreSQL one), the front-end lint, tests and build, and a build of the
+backend Docker image.
+
+- **`main` is protected.** Changes arrive by pull request and can only merge once all three
+  jobs pass.
+- **The API** deploys to Render from `backend/Dockerfile`. Render waits for the CI checks on
+  a commit to pass before deploying it, and only switches traffic once `/health` responds.
+- **The front end** deploys to Vercel from `frontend/` on every push to `main`. Vercel does
+  not wait for CI itself; branch protection is what stops a failing commit reaching it.
+
+Settings are in [backend/README.md](backend/README.md) and
+[frontend/README.md](frontend/README.md).
 
 ## Licence
 
