@@ -19,6 +19,7 @@
 
     <properties>
         <java.version>17</java.version>
+        <quickfixj.version>3.0.2</quickfixj.version>
     </properties>
 
     <dependencies>
@@ -60,6 +61,17 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-math3</artifactId>
             <version>3.6.1</version>
+        </dependency>
+        <!-- FIX engine (sessions, sequence numbers, heartbeats) and the FIX 4.4 message classes. -->
+        <dependency>
+            <groupId>org.quickfixj</groupId>
+            <artifactId>quickfixj-core</artifactId>
+            <version>${quickfixj.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.quickfixj</groupId>
+            <artifactId>quickfixj-messages-fix44</artifactId>
+            <version>${quickfixj.version}</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>

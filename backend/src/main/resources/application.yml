@@ -54,3 +54,12 @@ pricing:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+
+# FIX 4.4 quoting interface. Off by default so the REST API runs exactly as before.
+fix:
+  enabled: ${FIX_ENABLED:false}
+  # Session settings (protocol version, who we are, who may connect).
+  config-file: classpath:fix/acceptor.cfg
+  port: ${FIX_PORT:9876}
+  # Total bid/offer width in basis points of the theoretical price: 100 = 0.5% either side.
+  spread-bps: 100

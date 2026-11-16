@@ -24,6 +24,7 @@ src/main/java/com/optionpricing/
 ├── controller
 ├── dto
 ├── entity
+├── fix          (optional FIX 4.4 acceptor, see the project README)
 ├── model
 ├── repository
 └── service
