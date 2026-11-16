@@ -195,10 +195,8 @@ SOH delimiter, byte `0x01`):
 8=FIX.4.4|9=220|35=S|34=2|49=PRICER|52=20261116-18:39:14.501|56=CLIENT|55=AAPL|60=20261116-18:39:14.501|117=dc2059c8-b793-4b08-a914-0e1290cbacb5|131=REQ-1|132=20.1852|133=20.3881|167=OPT|201=1|202=207.5|541=20261216|631=20.2866|5001=BS|10=239|
 ```
 
-Limits: the FIX port has no API key or rate limiting, only the CompID check, so it is meant
-for local use. Sequence numbers are held in memory and reset at each logon, so there is no
-message recovery after a restart. Saved rows do not record that they came from FIX or which
-model was quoted.
+This is a demonstration of the protocol, not a production quoting system; what it leaves out
+is listed under [known limitations](#design-decisions-and-known-limitations).
 
 ## Tests
 
@@ -238,6 +236,26 @@ cd frontend && npm run lint
 - **Day count is calendar days over 365.**
 - **Free hosting.** A scheduled GitHub Actions job pings the API during UK working hours to
   keep it awake; outside those hours the first request is slow.
+
+The FIX interface shows the protocol and a second entry point onto the same pricing service.
+It is not how a dealer's quoting system works:
+
+- **The client picks the model.** Tag 5001 exists to expose the three models. In practice the
+  dealer decides how to price and the counterparty never sees it.
+- **The quote is indicative only.** It has no size, side or expiry time (`ValidUntilTime`),
+  and cannot be traded on. The spread is a fixed percentage of the theoretical price, where
+  a real one reflects risk, inventory and the client.
+- **The pricing engine speaks FIX itself.** A real setup puts a separate gateway or quoting
+  service in front, which owns the sessions and calls the pricer internally.
+- **No message recovery.** Sequence numbers and sent messages are held in memory and reset at
+  each logon, so nothing can be resent after a disconnect or restart. Production sessions
+  persist both.
+- **No authentication or rate limiting on the FIX port.** Only the CompIDs are checked, and
+  the connection is unencrypted, so it is for local use.
+- **Inputs are not tradeable.** Spot is a price up to 15 minutes old and volatility is
+  historical, not implied from the option market.
+- **The request log does not record the source.** A saved row does not say it came from FIX
+  or which model was quoted.
 
 ## Deployment
 
