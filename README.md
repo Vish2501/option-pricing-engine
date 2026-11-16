@@ -140,10 +140,70 @@ Only `ticker`, `strike`, `expiry` and `optionType` are required. A missing spot 
 volatility is fetched from market data; a missing rate or dividend yield uses the default.
 Errors always come back as `{"message": "...", "timestamp": "..."}`.
 
+## FIX interface
+
+Alongside REST, the engine can answer quote requests over FIX 4.4, the messaging protocol
+trading systems use to talk to each other. It runs inside the same Spring Boot app as an
+acceptor (server) built on [QuickFIX/J](https://www.quickfixj.org/), and is **off by
+default**; the deployed demo is REST only.
+
+A FIX request goes through the same `OptionPricingService.price` call as `POST /price`, so
+it is validated by the same rules, priced by the same models and saved to the same
+`pricing_requests` table.
+
+| Message | Direction | Meaning |
+|---|---|---|
+| QuoteRequest (`35=R`) | client to engine | Ask for a price on one option |
+| Quote (`35=S`) | engine to client | Bid, offer and mid for that option |
+| QuoteRequestReject (`35=AG`) | engine to client | The request could not be priced; `Text` (58) says why |
+| BusinessMessageReject (`35=j`) | engine to client | Any other message type, or an unexpected failure |
+
+Fields read from a QuoteRequest:
+
+| Tag | Field | Maps to | Notes |
+|---|---|---|---|
+| 131 | QuoteReqID | echoed on the reply | Required |
+| 146 | NoRelatedSym | | Must be 1: one option per request |
+| 55 | Symbol | `ticker` | Required |
+| 167 | SecurityType | | Required, must be `OPT` |
+| 201 | PutOrCall | `optionType` | Required; `0` = put, `1` = call |
+| 202 | StrikePrice | `strike` | Required |
+| 541 | MaturityDate | `expiry` | Required; `YYYYMMDD` |
+| 5001 | Pricing model (custom) | which model's price is quoted | Optional; `BS` (default), `MC` or `BT` |
+
+Spot price and volatility are not sent; they come from market data, as they do for a REST
+request that leaves them out. The Quote returns the chosen model's price as `MidPx` (631),
+with `BidPx` (132) and `OfferPx` (133) placed symmetrically around it. The width is
+`fix.spread-bps` in basis points of the price: the default of 100 puts each side 0.5% away.
+
+Run it:
+
+```bash
+cd backend && FIX_ENABLED=true mvn spring-boot:run     # FIX on port 9876, REST still on 8080
+```
+
+Connect any FIX 4.4 client as `SenderCompID=CLIENT`, `TargetCompID=PRICER`. The session
+settings are in [acceptor.cfg](backend/src/main/resources/fix/acceptor.cfg); the port
+(`FIX_PORT`) and spread are in [application.yml](backend/src/main/resources/application.yml).
+
+A request for a Black-Scholes quote on an AAPL 207.5 call, and the reply (`|` stands for the
+SOH delimiter, byte `0x01`):
+
+```text
+8=FIX.4.4|9=116|35=R|34=2|49=CLIENT|52=20261116-18:39:14.483|56=PRICER|131=REQ-1|146=1|55=AAPL|167=OPT|541=20261216|201=1|202=207.5|10=171|
+
+8=FIX.4.4|9=220|35=S|34=2|49=PRICER|52=20261116-18:39:14.501|56=CLIENT|55=AAPL|60=20261116-18:39:14.501|117=dc2059c8-b793-4b08-a914-0e1290cbacb5|131=REQ-1|132=20.1852|133=20.3881|167=OPT|201=1|202=207.5|541=20261216|631=20.2866|5001=BS|10=239|
+```
+
+Limits: the FIX port has no API key or rate limiting, only the CompID check, so it is meant
+for local use. Sequence numbers are held in memory and reset at each logon, so there is no
+message recovery after a restart. Saved rows do not record that they came from FIX or which
+model was quoted.
+
 ## Tests
 
 ```bash
-cd backend && mvn test            # 67 tests
+cd backend && mvn test            # 84 tests
 cd frontend && npm test           # 17 tests
 cd frontend && npm run lint
 ```
@@ -152,6 +212,8 @@ cd frontend && npm run lint
   Greeks checked against finite differences, implied-volatility round trips, American
   exercise properties, and the Monte Carlo error shrinking with more paths.
 - **API:** validation, error format, history filtering and paging, analytics, rate limiting.
+- **FIX:** a QuickFIX/J client connects to the running acceptor over a local socket and
+  checks the Quote and both kinds of rejection; the field mapping has its own unit tests.
 - **Market data:** Yahoo responses are stubbed, so tests never call the real service.
 - **PostgreSQL:** one test runs the Flyway migrations and the aggregate queries against a
   real PostgreSQL database. It runs in CI, and locally when `POSTGRES_TEST_URL` is set; the
